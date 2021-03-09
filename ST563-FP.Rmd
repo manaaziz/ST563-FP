@@ -10,7 +10,7 @@ output:
 
 ```{r setup, include=FALSE}
 # Set default chunk options
-knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 
 # Load necessary libraries
 library(tidyverse) # so many things
@@ -26,8 +26,14 @@ library(kernlab) # fitting SVM
 library(class) # fitting kNN model
 
 # Read in data set
-wine <- read.csv2(file = "winequality-red.csv", header = TRUE)
+wine <- read.csv2(file = "winequality-red.csv", header = TRUE, dec = ".",
+                  colClasses = c(rep("double", 7), rep("double", 4), "integer"))
 ```
+
+## Introduction
+There has been a push towards the implementation of different analytics solutions within the agriculture industry, especially in the realms of crop health and yield. These sort of analyses can help farmers to reduce waste and improve profits. In particular, the viniculture industry stands to benefit from such methods, being that the production of wine is multifaceted. Winemakers can work to optimize revenue by analyzing their input and output (crops and wines). Specifically, costs may be cut out if machine learning methods were able to predict the quality of wine based on different metrics, since wine producers would no longer have to hire expert wine tasters to determine wine quality. 
+
+In this study, our objective is to try and predict the quality of wine using a variety of statistical learning techniques. We will look at this problem from a regression standpoint as well as a classification standpoint. Using regression, we will try and predict the exact rating (0 to 10) of a particular wine. On the other hand, when we look at classification, we will try to classify a particular wine as either good or bad, taking wines rated from 0-5 as low quality wines and wines rated from 6-10 as high quality wines.
 
 ## Required Libraries
 To run the code for the project, the following libraries are required:
@@ -36,6 +42,7 @@ To run the code for the project, the following libraries are required:
   * `tidyverse`: for all the data reading and wrangling
   * `knitr`: for rmarkdown table outputs
   * `rmarkdown`: for output documents
+  * `corrplot`: for correlation structure visualization
   * `leaps`: for subset selection
   * `rpart`: fitting the basic classification tree
   * `rpart.plot`: visualization of the classification tree
@@ -48,7 +55,19 @@ To run the code for the project, the following libraries are required:
 ## Variable Descriptions  
 
 # Methods  
-## Data Processing  
+## Data Processing & Partitioning 
+```{r partition}
+# Prepare data for classification
+wine$class <- ifelse(wine$quality <= 5, "low", "high") %>% as.factor()
+
+# Create Data Partition
+ind <- createDataPartition(wine$quality, p = .75, list = FALSE)
+
+# Create train/test data for H1
+trn <- wine[ind,]
+tst <- wine[-ind,]
+```
+
 Fortunately, the `wine` data set that we worked with was very tidy; there was no missing values. We didn't standardize the data initially, but when training the support vector machine as well as the k-nearest neighbors models we centered and scaled the data. 
 
 As mentioned in the introduction, our focus is on the classification accuracy of machine learning methods. In particular, we will be using traditional cross-validation methods to assess the accuracy, sensitivity, and specificity of each of the five models. We split the data into a training and test data set in order to later evaluate the model's prediction accuracy. For this project we used a 75/25 split, training the data on the 75% and testing the trained models on the withheld 25%. We will then repeat this process over 5 folds of the data, averaging the results.
