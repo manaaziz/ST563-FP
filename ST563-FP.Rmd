@@ -9,25 +9,51 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+# Set default chunk options
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+# Load necessary libraries
+library(tidyverse) # so many things
+library(knitr) # making nice tables
+library(caret) # training models & CV
+library(leaps) # subset selection
+library(corrplot) # visualize correlation
+library(rmarkdown) # for output documents
+library(rpart) # fitting classification tree
+library(rpart.plot) # visualization of classification tree
+library(randomForest) # fitting random forest model
+library(kernlab) # fitting SVM
+library(class) # fitting kNN model
+
+# Read in data set
+wine <- read.csv2(file = "winequality-red.csv", header = TRUE)
 ```
 
-## R Markdown
+## Required Libraries
+To run the code for the project, the following libraries are required:
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+  * `caret`: to do the heavy lifting of training and tuning the models
+  * `tidyverse`: for all the data reading and wrangling
+  * `knitr`: for rmarkdown table outputs
+  * `rmarkdown`: for output documents
+  * `leaps`: for subset selection
+  * `rpart`: fitting the basic classification tree
+  * `rpart.plot`: visualization of the classification tree
+  * `randomForest`: fitting random forest models
+  * `kernlab`: fitting the support vector machine
+  * `class`: fitting the k-nearest neighbor model
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+\newpage
 
-```{r cars}
-summary(cars)
-```
+## Variable Descriptions  
 
-## Including Plots
+# Methods  
+## Data Processing  
+Fortunately, the `wine` data set that we worked with was very tidy; there was no missing values. We didn't standardize the data initially, but when training the support vector machine as well as the k-nearest neighbors models we centered and scaled the data. 
 
-You can also embed plots, for example:
+As mentioned in the introduction, our focus is on the classification accuracy of machine learning methods. In particular, we will be using traditional cross-validation methods to assess the accuracy, sensitivity, and specificity of each of the five models. We split the data into a training and test data set in order to later evaluate the model's prediction accuracy. For this project we used a 75/25 split, training the data on the 75% and testing the trained models on the withheld 25%. We will then repeat this process over 5 folds of the data, averaging the results.
 
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
+The tree-based and the K-nearest neighbors models require parameters to be tuned (more on those later). Since we used the `caret` package in R to fit all of our models, we used the tunes of the parameters that we used were deemed the "best" by the `train()` function.
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+## Variable Selection  
+After running an initial random forest model on the entire dataset with selected predictors, we looked at the variable importance of the predictors to decide which variables we would use in our final model. Variable importance, in the context on machine learning, refers to how much a given model "uses" that variable to make accurate predictions. In other words, the more a model relies on a variable to make predictions, the more important it is for the model.  
