@@ -377,6 +377,17 @@ The multiple linear regression model is subject to the following assumptions abo
   
 The biggest benefit to using a multiple linear regression model is its interpretability and ease of use. The coefficients can be computed efficiently and they are have clear and easy interpretations. It is also possible to make inference on any of the variables or linear combination of variables. The most signficiant drawback of using the multiple linear regression model is that, like the logistic regression model, it is subject to distributional assumptions, meaning that if the assumptions are violated, our estimates and inference will be unstable at best and invalid at worst. 
 
+```{r mlr}
+#### REGRESSION ####
+lm.reg <- train(form.reg, data = trn, method = "lm",
+                trControl = trctrl)
+
+# Obtain RMSE and results for linear model
+lm.reg.pred <- predict(lm.reg, newdata = tst)
+lm.reg.rmse <- sqrt(mean((lm.reg.pred - tst$quality)^2))
+#lm.reg.rmse
+```
+
 # Results
 
 # Conclusion
