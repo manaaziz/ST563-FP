@@ -156,5 +156,6 @@ Boosting is the process of slowly training trees to avoid overfitting. The gener
   * $\lambda$ - the shrinkage parameter, which is a small positive number that controls the rate at which the boosting learns
   * $d$ - the number of splits in each tree, which controls the complexity of the boosted ensemble 
 
-The main benefit of using boosting is to reduce overfitting. It often yields the best results in terms of the ensemble learning methods. 
+The main benefit of using boosting is to reduce overfitting. It often yields the best results in terms of the ensemble learning methods. Like the random forest model, since boosting is an ensemble learning technique, it will have a lower variance than other methods. Also, there is no need to scale down variables or create any dummy variables for categorical variables. All that said, boosting is not without its shortcomings; it does not do well with high dimensionality, it's not very interpretable (since it is a sort of blackbox algorithm), and it is relatively expensive computationally.
+
 ## Multiple Linear Regression
