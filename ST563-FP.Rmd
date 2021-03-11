@@ -24,6 +24,7 @@ library(rpart.plot) # visualization of classification tree
 library(randomForest) # fitting random forest model
 library(kernlab) # fitting SVM
 library(class) # fitting kNN model
+library(glmnet) # fitting LASSO 
 
 # Read in data set
 wine <- read.csv2(file = "winequality-red.csv", header = TRUE, dec = ".",
@@ -108,28 +109,88 @@ trctrl <- trainControl(method = "cv", number = 5)
 ```
 
 ## Variable Selection
+After running an initial random forest model on the entire dataset with selected predictors, we looked at the variable importance of the predictors to decide which variables we would use in our final model. Variable importance, in the context on machine learning, refers to how much a given model "uses" that variable to make accurate predictions. In other words, the more a model relies on a variable to make predictions, the more important it is for the model. 
+```{r varImp, echo = FALSE}
+# Write preliminary model  
+model.class.pre <- class ~ .
+
+# Fit preliminary random forest on entire data set
+rf.class.pre <- randomForest(model.class.pre, data=wine, ntree=500, mtry=3, importance=TRUE)
+
+# Create data frame of variable importance
+df.class.pre <- rf.class.pre$importance %>% as.data.frame()
+X <- rownames(df.class.pre)
+
+# Sort the data frame and prep for plot
+VIrf.pre.class.sort <- df.class.pre[order(df.class.pre[,"MeanDecreaseAccuracy"]), , drop = FALSE]
+VIrf.pre.class.sort$X <- rownames(VIrf.pre.class.sort)
+VIrf.pre.class.sort$X <- factor(VIrf.pre.class.sort$X, levels = VIrf.pre.class.sort$X)
+
+# Plot variable importance
+vimp.class <- ggplot(VIrf.pre.class.sort[-12,],aes(x=X,y=MeanDecreaseAccuracy))+
+              geom_bar(stat = 'identity', position = 'dodge', fill="lightblue")+
+              theme(axis.text.x = element_text(angle = 60, hjust = 1))+
+              ylab("Mean Decrease in Accuracy") + xlab("Predictor")+
+              ggtitle("Variable Importance Plot")
+vimp.class
+```  
+
+```{r}
+# Get X matrix
+X <- model.matrix(quality ~ ., data = wine)[, -1]
+
+# Fit LASSO model and plot result
+lm.lasso <- glmnet::cv.glmnet(X, wine$quality, alpha = 1)
+lambda <- lm.lasso$lambda.min
+plot(lm.lasso)
+
+# Fit LASSO model with best tune
+lasso.best <- glmnet(X, wine$quality, alpha = 1)
+predict(lasso.best, s = lambda, type = "coefficients")
+
+# Create model and get summary output
+lm.sub <- regsubsets(quality ~ ., data = wine, nvmax = 10)
+smre <- lm.sub %>% summary()
+
+# Plot the Cp, BIC, and R^2 results in one plot
+par(mfrow = c(2,2))
+plot(smre$cp, xlab = "# of Preds", ylab = "Cp")
+points(which.min(smre$cp), smre$cp[which.min(smre$cp)], pch = 8, col = "#CC0000")
+plot(smre$bic, xlab = "# of Preds", ylab = "BIC")
+points(which.min(smre$bic), smre$bic[which.min(smre$bic)], pch = 8, col = "#CC0000")
+plot(smre$adjr2, xlab = "# of Preds", ylab = "Adjusted R^2")
+points(which.max(smre$adjr2), smre$adjr2[which.max(smre$adjr2)], pch = 8, col = "#CC0000")
+
+# Best subset selection
+best.betas <- coef(lm.sub, id = 6) %>% round(2)
+best.betas
+```
+
+```{r form}
+form.reg <- quality ~ volatile.acidity + chlorides + 
+            total.sulfur.dioxide + pH + sulphates + alcohol
+form.class <- class ~ alcohol + sulphates + volatile.acidity + density + total.sulfur.dioxide
+```
+
 
 ## Basic Tree  
 The basic classification or regression tree is based on partitioning the data into subgroups using simple binary splitting. Initially, all objects are considered a single group. Then, the group is binarily split into two subgroups based on the criteria of a certain variable. In the classification setting, we classify the observations in a specific region with majority vote, while in the context of regression the mean of the group is used for prediction. We want to grow the tree as big as we can, and then prune it back using cost-complexity pruning. This is done to not overfit the data, but pruning increases the bias. The pruning parameter needs to be tuned, which is done automatically in the `caret` package.
 
 The advantage of using a basic tree is that it is easy to understand and has a good interpretability, which is not something that translates over to ensemble methods like the random forest. Additionally, the basic classification or regression tree is not very computationally expensive, unlike the random forest, boosting, and the support vector machine. We used the `caret` and `rpart` packages in R to fit our trees.
+
 ```{r tree, echo=FALSE}
 #### REGRESSION ####
 # Fit basic regression tree model
-tree.reg <- train(form, data = trn, method = "rpart",
+tree.reg <- train(form.reg, data = trn, method = "rpart",
                   trControl = trctrl)
 
 # Obtain RMSE and results
 tree.reg.pred <- predict(tree.reg, newdata = tst)
-tree.reg.rmse <- mean((tree.reg.pred - tst$quality)^2)
-
-# Print out tree visualization
-tree.reg.out <- rpart(form, data = trn, cp = 0.01798144)
-rpart.plot(tree.reg.out, main="Regression Tree")
+tree.reg.rmse <- sqrt(mean((tree.reg.pred - tst$quality)^2))
 
 #### HOTEL 2 ####
 # Fit classification tree model
-tree.class <- train(form, data = trn, method = "rpart",
+tree.class <- train(form.class, data = trn, method = "rpart",
                     trControl = trctrl)
 
 # Obtain confusion matrix and results for H2
@@ -137,13 +198,17 @@ tree.class.pred <- predict(tree.class, newdata = tst)
 tree.class.CM <- confusionMatrix(tree.class.pred, tst$class)
 tree.class.res <- c(tree.class.CM$overall[1], tree.class.CM$byClass[1:2])
 
-# Print out tree visualization
-tree.class.out <- rpart(form, data = trn, cp = 0.01798144)
+# Print out regression tree visualization
+tree.reg.out <- rpart(form.reg, data = trn, cp = 0.03061684)
+rpart.plot(tree.reg.out, main="Regression Tree")
+
+# Print out classification tree visualization
+tree.class.out <- rpart(form.class, data = trn, cp = 0.01971326)
 rpart.plot(tree.class.out, main="Classification Tree")
 
 # Print out confusion matrix
-# list("Confusion Matrix for H1" = h1.tree.CM$table,
-#      "Confusion Matrix for H2" = h2.tree.CM$table)
+list("RMSE" = tree.reg.rmse,
+     "Class Results" = tree.class.res)
 ```  
 
 ## Random Forest  
@@ -155,11 +220,8 @@ To train our model, we used the `randomForest` and `caret` packages in R. The ma
 
 ```{r rf, echo=FALSE}
 #### REGRESSION ####
-# Formula for random forest
-form.rf <- 
-
 # Fit the regression random forest model 
-rf.reg <- train(form.rf, data = trn, method = "rf",
+rf.reg <- train(form.reg, data = trn, method = "rf",
                 trControl = trctrl, importance = TRUE)
 
 # Obtain RMSE and results
@@ -168,7 +230,7 @@ rf.reg.rmse <- mean((rf.reg.pred - tst$quality)^2)
 
 #### CLASSIFICATION ####
 # Fit the classification random forest model
-rf.class <- train(form.rf, data = trn, method = "rf",
+rf.class <- train(form.class, data = trn, method = "rf",
                 trControl = trctrl, importance = TRUE)
 
 # Obtain confusion matrix and results
@@ -176,9 +238,9 @@ rf.class.pred <- predict(rf.class, newdata = tst)
 rf.class.CM <- confusionMatrix(rf.class.pred, tst$class)
 rf.class.res <- c(rf.class.CM$overall[1], rf.class.CM$byClass[1:2])
 
-# Print out confusion matrix
-# list("Confusion Matrix for H1" = h1.rf.CM$table,
-#      "Confusion Matrix for H2" = h2.rf.CM$table)
+# Print out results in a list
+list("RMSE" = rf.reg.rmse,
+     "Class Results" = rf.class.res)
 ```  
 
 ## Support Vector Machine  
@@ -188,11 +250,8 @@ The support vector machine is pretty effective in higher-dimensional spaces, but
 
 ```{r svm}
 #### CLASSIFICATION ####
-# Define formula for SVM model
-form.svm <- 
-
 # Fit support vector machine for H1
-svm.class <- train(form.svm, data = trn, method = "svmRadial", 
+svm.class <- train(form.class, data = trn, method = "svmRadial", 
                    preProcess = c("center", "scale"),
                    trControl = trctrl, tuneLength = 10)
 
@@ -200,6 +259,10 @@ svm.class <- train(form.svm, data = trn, method = "svmRadial",
 svm.class.pred <- predict(svm.class, newdata = tst)
 svm.class.CM <- confusionMatrix(svm.class.pred, tst$class)
 svm.class.res <- c(svm.class.CM$overall[1], svm.class.CM$byClass[1:2])
+
+# Print out results in a list
+list("Results" = svm.class.res,
+     "Confusion Matrix" = svm.class.CM$table)
 ```
 
 ## K-Nearest Neighbors (KNN)  
@@ -211,11 +274,8 @@ The number (k) of closest neighbors is a parameter that needs tuning. We used th
 
 ```{r knn}
 #### REGRESSION ####
-# Define formula for KNN model
-form.knn <- 
-
 # Fit knn model for H1
-knn.reg <- train(form.knn, data = trn, method = "knn",
+knn.reg <- train(form.reg, data = trn, method = "knn",
                  trControl = trctrl, preProcess = c("center", "scale"))
 
 # Obtain RMSE and results
@@ -224,13 +284,17 @@ knn.reg.rmse <- mean((knn.reg.pred - tst$quality)^2)
 
 #### CLASSIFICATION ####
 # Fit knn model for H2
-knn.class <- train(form.kn, data = trn, method = "knn",
+knn.class <- train(form.class, data = trn, method = "knn",
                    trControl=trctrl, preProcess = c("center", "scale"))
 
 # Obtain confusion matrix and results for H2
 knn.class.pred <- predict(knn.class, newdata = tst)
 knn.class.CM <- confusionMatrix(knn.class.pred, tst$class)
 knn.class.res <- c(knn.class.CM$overall[1], knn.class.CM$byClass[1:2])
+
+# Print out results in a list
+list("RMSE" = knn.reg.rmse,
+     "Class Results" = knn.class.res)
 ```
 
 ## Logistic Regression  
@@ -242,6 +306,22 @@ $$
 The logistic regression model assumes that each observation is independent, that there is little or no multicollinearity among the predictors, and that there is a linear relationship between the predictor variables and log odds. This differs from the typical regression model, where the residuals must be normally distributed and have constant variance.
 
 To fit the logistic regression model, we used the `glm()` function in base R. The advantages to using a logistic regression model are similar to those for the basic classification tree: it is not computationally expensive and easy to interpret the results. On the other hand, one of the major drawbacks to using a logistic regression model is that it is subject to the distributional assumptions on the data and errors mentioned above. If our assumptions are broken, our predictions may not be very reliable.  
+
+```{r logit}
+#### CLASSIFICATION ####
+# Fit logistic regression model
+glm.class <- glm(form.class, data = trn,  family = binomial(link = "logit"))
+
+# Obtain confusion matrix and results for H2
+glm.class.pred <- predict(glm.class, newdata = tst, type = "response")
+glm.class.pred <- glm.class.pred %>% round() %>% as.factor()
+glm.class.CM <- confusionMatrix(glm.class.pred, ifelse(tst$class == "low", 1, 0) %>% as.factor())
+glm.class.res <- c(glm.class.CM$overall[1], glm.class.CM$byClass[1:2])
+
+# Print out results in a list
+list("Results" = glm.class.res,
+     "Confusion Matrix" = glm.class.CM$table)
+```
 
 ## LASSO Regression
 LASSO, which stands for Least Absolute Shrinkage and Selection Operator works to shrink beta coefficient estimators towards zero due to a penalty. This is different from traditional shrinkage methods since the form of the LASSO penalty actually forces some of the coefficients to exactly zero. This helps achieve variable selection and yields sparser models, similar to subset selection. In particular, the LASSO estimate minimizes:
