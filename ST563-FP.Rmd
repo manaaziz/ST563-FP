@@ -82,7 +82,7 @@ Each entry in the dataset represents the different metrics of the following attr
   * **quality**: score of quality of the wine given by expert tasters (score between 0 and 10).
   
 # Methods  
-## Data Processing & Partitioning 
+## Data Processing
 ```{r partition}
 # Prepare data for classification
 wine$class <- ifelse(wine$quality <= 5, "low", "high") %>% as.factor()
@@ -159,3 +159,24 @@ Boosting is the process of slowly training trees to avoid overfitting. The gener
 The main benefit of using boosting is to reduce overfitting. It often yields the best results in terms of the ensemble learning methods. Like the random forest model, since boosting is an ensemble learning technique, it will have a lower variance than other methods. Also, there is no need to scale down variables or create any dummy variables for categorical variables. All that said, boosting is not without its shortcomings; it does not do well with high dimensionality, it's not very interpretable (since it is a sort of blackbox algorithm), and it is relatively expensive computationally.
 
 ## Multiple Linear Regression
+Multiple Linear Regression is the extension of simple linear regression to a set of multiple predictor variables. The goal of multiple linear regression is to model the linear relationship between a continuous response and two or more predictor variables. Like simple linear regression, coefficient estimates are found by minimizing the sum of the squared errors. The formula for a multiple linear regression model with $p$ predictor variables is as follows:
+$$
+\begin{aligned}
+&Y_i = \beta_0 + \beta_1X_{i1} + \beta_2X_{i2} + ... + \beta_pX_{ip} + \epsilon_i, \\
+& \quad \text{where for } i = n \text{ observations}, \\
+& \quad y_i = \text{dependent variable (response)} \\
+& \quad x_{ji} = \text{indpendent variables } (j = 1, ... , p) \\
+& \quad \beta_0 = \text{y-intercept} \\
+& \quad \beta_j = \text{slope coefficients for each variable} \\
+& \quad \epsilon_i = \text{residuals (error term of model)} \\
+\end{aligned}
+$$
+
+The multiple linear regression model is subject to the following assumptions about the data:
+  * Linear relationship between response and predictors
+  * No collinearity between predictor variables
+  * $y_i$'s are iid
+  * $\epsilon_i \sim N(0, \sigma^2)$
+  
+The biggest benefit to using a multiple linear regression model is its interpretability and ease of use. The coefficients can be computed efficiently and they are have clear and easy interpretations. It is also possible to make inference on any of the variables or linear combination of variables. The most signficiant drawback of using the multiple linear regression model is that, like the logistic regression model, it is subject to distributional assumptions, meaning that if the assumptions are violated, our estimates and inference will be unstable at best and invalid at worst. 
+
