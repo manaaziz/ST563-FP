@@ -149,7 +149,12 @@ The main benefits of using LASSO are the variable selection property, the comput
 
 To fit the LASSO regression model, we used the `glmnet` package in R.
 
-## Boosting
+## Boosted Tree
+Boosting is the process of slowly training trees to avoid overfitting. The general approach is as follows: the trees are grown sequentially, where each subsequent tree is grown on a modified version of the original data, while the predictions are continuously updated as the trees are grown. The model has three parameters that need tuning:  
 
+  * $B$ - the number of trees
+  * $\lambda$ - the shrinkage parameter, which is a small positive number that controls the rate at which the boosting learns
+  * $d$ - the number of splits in each tree, which controls the complexity of the boosted ensemble 
 
+The main benefit of using boosting is to reduce overfitting. It often yields the best results in terms of the ensemble learning methods. 
 ## Multiple Linear Regression
