@@ -25,6 +25,7 @@ library(randomForest) # fitting random forest model
 library(kernlab) # fitting SVM
 library(class) # fitting kNN model
 library(glmnet) # fitting LASSO 
+library(gbm) # fitting the boosted tree model
 
 # Read in data set
 wine <- read.csv2(file = "winequality-red.csv", header = TRUE, dec = ".",
@@ -60,6 +61,8 @@ To run the code for the project, the following libraries are required:
   * `randomForest`: fitting random forest models
   * `kernlab`: fitting the support vector machine
   * `class`: fitting the k-nearest neighbor model
+  * `glmnet`: fitting the LASSO model
+  * `gbm`: fitting the boosted tree model
 
 \newpage
 
@@ -136,18 +139,6 @@ vimp.class
 ```  
 
 ```{r}
-# Get X matrix
-X <- model.matrix(quality ~ ., data = wine)[, -1]
-
-# Fit LASSO model and plot result
-lm.lasso <- glmnet::cv.glmnet(X, wine$quality, alpha = 1)
-lambda <- lm.lasso$lambda.min
-plot(lm.lasso)
-
-# Fit LASSO model with best tune
-lasso.best <- glmnet(X, wine$quality, alpha = 1)
-predict(lasso.best, s = lambda, type = "coefficients")
-
 # Create model and get summary output
 lm.sub <- regsubsets(quality ~ ., data = wine, nvmax = 10)
 smre <- lm.sub %>% summary()
@@ -163,7 +154,6 @@ points(which.max(smre$adjr2), smre$adjr2[which.max(smre$adjr2)], pch = 8, col = 
 
 # Best subset selection
 best.betas <- coef(lm.sub, id = 6) %>% round(2)
-best.betas
 ```
 
 ```{r form}
@@ -199,16 +189,16 @@ tree.class.CM <- confusionMatrix(tree.class.pred, tst$class)
 tree.class.res <- c(tree.class.CM$overall[1], tree.class.CM$byClass[1:2])
 
 # Print out regression tree visualization
-tree.reg.out <- rpart(form.reg, data = trn, cp = 0.03061684)
-rpart.plot(tree.reg.out, main="Regression Tree")
+#tree.reg.out <- rpart(form.reg, data = trn, cp = 0.03061684)
+#rpart.plot(tree.reg.out, main="Regression Tree")
 
 # Print out classification tree visualization
-tree.class.out <- rpart(form.class, data = trn, cp = 0.01971326)
-rpart.plot(tree.class.out, main="Classification Tree")
+#tree.class.out <- rpart(form.class, data = trn, cp = 0.01971326)
+#rpart.plot(tree.class.out, main="Classification Tree")
 
 # Print out confusion matrix
-list("RMSE" = tree.reg.rmse,
-     "Class Results" = tree.class.res)
+#list("RMSE" = tree.reg.rmse,
+#     "Class Results" = tree.class.res)
 ```  
 
 ## Random Forest  
@@ -226,7 +216,7 @@ rf.reg <- train(form.reg, data = trn, method = "rf",
 
 # Obtain RMSE and results
 rf.reg.pred <- predict(rf.reg, newdata = tst)
-rf.reg.rmse <- mean((rf.reg.pred - tst$quality)^2)
+rf.reg.rmse <- sqrt(mean((rf.reg.pred - tst$quality)^2))
 
 #### CLASSIFICATION ####
 # Fit the classification random forest model
@@ -239,8 +229,8 @@ rf.class.CM <- confusionMatrix(rf.class.pred, tst$class)
 rf.class.res <- c(rf.class.CM$overall[1], rf.class.CM$byClass[1:2])
 
 # Print out results in a list
-list("RMSE" = rf.reg.rmse,
-     "Class Results" = rf.class.res)
+#list("RMSE" = rf.reg.rmse,
+#     "Class Results" = rf.class.res)
 ```  
 
 ## Support Vector Machine  
@@ -261,8 +251,8 @@ svm.class.CM <- confusionMatrix(svm.class.pred, tst$class)
 svm.class.res <- c(svm.class.CM$overall[1], svm.class.CM$byClass[1:2])
 
 # Print out results in a list
-list("Results" = svm.class.res,
-     "Confusion Matrix" = svm.class.CM$table)
+#list("Results" = svm.class.res,
+#     "Confusion Matrix" = svm.class.CM$table)
 ```
 
 ## K-Nearest Neighbors (KNN)  
@@ -280,7 +270,7 @@ knn.reg <- train(form.reg, data = trn, method = "knn",
 
 # Obtain RMSE and results
 knn.reg.pred <- predict(knn.reg, newdata = tst)
-knn.reg.rmse <- mean((knn.reg.pred - tst$quality)^2)
+knn.reg.rmse <- sqrt(mean((knn.reg.pred - tst$quality)^2))
 
 #### CLASSIFICATION ####
 # Fit knn model for H2
@@ -293,8 +283,8 @@ knn.class.CM <- confusionMatrix(knn.class.pred, tst$class)
 knn.class.res <- c(knn.class.CM$overall[1], knn.class.CM$byClass[1:2])
 
 # Print out results in a list
-list("RMSE" = knn.reg.rmse,
-     "Class Results" = knn.class.res)
+#list("RMSE" = knn.reg.rmse,
+#     "Class Results" = knn.class.res)
 ```
 
 ## Logistic Regression  
@@ -310,7 +300,7 @@ To fit the logistic regression model, we used the `glm()` function in base R. Th
 ```{r logit}
 #### CLASSIFICATION ####
 # Fit logistic regression model
-glm.class <- glm(form.class, data = trn,  family = binomial(link = "logit"))
+glm.class <- glm(form.class, data = trn, family = binomial(link = "logit"))
 
 # Obtain confusion matrix and results for H2
 glm.class.pred <- predict(glm.class, newdata = tst, type = "response")
@@ -319,12 +309,12 @@ glm.class.CM <- confusionMatrix(glm.class.pred, ifelse(tst$class == "low", 1, 0)
 glm.class.res <- c(glm.class.CM$overall[1], glm.class.CM$byClass[1:2])
 
 # Print out results in a list
-list("Results" = glm.class.res,
-     "Confusion Matrix" = glm.class.CM$table)
+#list("Results" = glm.class.res,
+#     "Confusion Matrix" = glm.class.CM$table)
 ```
 
 ## LASSO Regression
-LASSO, which stands for Least Absolute Shrinkage and Selection Operator works to shrink beta coefficient estimators towards zero due to a penalty. This is different from traditional shrinkage methods since the form of the LASSO penalty actually forces some of the coefficients to exactly zero. This helps achieve variable selection and yields sparser models, similar to subset selection. In particular, the LASSO estimate minimizes:
+LASSO, which stands for Least Absolute Shrinkage and Selection Operator works to shrink beta coefficient estimators towards zero using a penalty term. This is different from traditional shrinkage methods since the form of the LASSO penalty actually forces some of the coefficients to exactly zero. This helps achieve variable selection and yields sparser models, similar to subset selection. In particular, the LASSO estimate minimizes:
 $$
 \sum_{i=1}^n\left( y_i - \beta_0 - \sum_{j=1}^p\beta_jx_{ij}\right)^2 + \lambda \sum_{j=1}^p|\beta_j| = RSS + \lambda \sum_{j=1}^p|\beta_j|
 $$
@@ -333,6 +323,16 @@ where $\lambda$ is the penalty parameter, with p different predictors.
 The main benefits of using LASSO are the variable selection property, the computational efficiency, and the interpretability. Plus, as with any regularization method, it can help to avoid overfitting with a very flexible model. On the other hand, some of the pitfalls of LASSO are that the selected variables could be highly biased, correlation among predictors is not very well dealt with, and the feature selection may not be stable over different bootstrapped samples.
 
 To fit the LASSO regression model, we used the `glmnet` package in R.
+```{r}
+#### REGRESSION ####
+# Fit LASSO to the data
+lasso.reg <- train(form.reg, data = trn, method = "glmnet", trControl = trctrl, 
+                   tuneGrid = expand.grid(.alpha=1, .lambda=0.00175))
+
+lasso.reg.pred <- predict(lasso.reg, newdata = tst)
+lasso.reg.rmse <- sqrt(mean((lasso.reg.pred - tst$quality)^2))
+#lasso.reg.rmse
+```
 
 ## Boosted Tree
 Boosting is the process of slowly training trees to avoid overfitting. The general approach is as follows: the trees are grown sequentially, where each subsequent tree is grown on a modified version of the original data, while the predictions are continuously updated as the trees are grown. The model has three parameters that need tuning:  
@@ -342,6 +342,18 @@ Boosting is the process of slowly training trees to avoid overfitting. The gener
   * $d$ - the number of splits in each tree, which controls the complexity of the boosted ensemble 
 
 The main benefit of using boosting is to reduce overfitting. It often yields the best results in terms of the ensemble learning methods. Like the random forest model, since boosting is an ensemble learning technique, it will have a lower variance than other methods. Also, there is no need to scale down variables or create any dummy variables for categorical variables. All that said, boosting is not without its shortcomings; it does not do well with high dimensionality, it's not very interpretable (since it is a sort of blackbox algorithm), and it is relatively expensive computationally.
+
+```{r}
+#### REGRESSION ####
+# Fit the regression boosted tree model 
+boost.reg <- train(form.reg, data = trn, method = "gbm",
+                trControl = trctrl, verbose = FALSE)
+
+# Obtain RMSE and results
+boost.reg.pred <- predict(boost.reg, newdata = tst)
+boost.reg.rmse <- sqrt(mean((boost.reg.pred - tst$quality)^2))
+#boost.reg.rmse
+```
 
 ## Multiple Linear Regression
 Multiple Linear Regression is the extension of simple linear regression to a set of multiple predictor variables. The goal of multiple linear regression is to model the linear relationship between a continuous response and two or more predictor variables. Like simple linear regression, coefficient estimates are found by minimizing the sum of the squared errors. The formula for a multiple linear regression model with $p$ predictor variables is as follows:
