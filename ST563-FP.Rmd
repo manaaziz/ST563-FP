@@ -63,7 +63,7 @@ To run the code for the project, the following libraries are required:
 \newpage
 
 # Data
-The data set used is the `Wine Quality` dataset from the UCI Machine Learning Repository. The data set is composed of 1600 observations of different variants of the Portuguese "Vinho Verde" red wine. For each wine, various features of the wine were measured, including a measurement of quality, given by an expert wine taster. Our objective it to use the different features to predict the quality of the wine.
+The data set used is the `Wine Quality` dataset from the UCI Machine Learning Repository. The data set is composed of 1600 observations of different variants of the Portuguese "Vinho Verde" red wine. For each wine, various features of the wine were measured, including a measurement of quality, given by an expert wine taster. Our objective is to use the different features to predict the quality of the wine using different machine learning techniques.
 
 ## Variable Descriptions  
 Each entry in the dataset represents the different metrics of the following attributes of a single type of wine.
@@ -95,12 +95,17 @@ trn <- wine[ind,]
 tst <- wine[-ind,]
 ```
 
-Fortunately, the `wine` data set that we worked with was very tidy; there was no missing values. We didn't standardize the data initially, but when training the support vector machine as well as the k-nearest neighbors models we centered and scaled the data.
+Fortunately, the `wine` dataset that we worked with was very tidy; there was no missing values. We didn't standardize the data initially, but when training the support vector machine as well as the k-nearest neighbors models we centered and scaled the data.
 
 ## Cross Validation
 As mentioned in the introduction, our focus is on the classification accuracy of machine learning methods. In particular, we will be using traditional cross-validation methods to assess the accuracy, sensitivity, and specificity of each of the models. We split the data into a training and test data set in order to later evaluate the model's prediction accuracy. For this project we used a 75/25 split, training the data on the 75% and testing the trained models on the withheld 25%. We will then repeat this process over 5 folds of the data, averaging the results.
 
 The tree-based, LASSO, and K-nearest neighbors models require parameters to be tuned (more on those later). Since we used the `caret` package in R to fit all of our models, we used the tunes of the parameters that were deemed "best" by the `train()` function.
+
+```{r CV}
+# Specify the cross-validation method (5-fold CV)
+trctrl <- trainControl(method = "cv", number = 5)
+```
 
 ## Variable Selection
 
@@ -108,18 +113,94 @@ The tree-based, LASSO, and K-nearest neighbors models require parameters to be t
 The basic classification or regression tree is based on partitioning the data into subgroups using simple binary splitting. Initially, all objects are considered a single group. Then, the group is binarily split into two subgroups based on the criteria of a certain variable. In the classification setting, we classify the observations in a specific region with majority vote, while in the context of regression the mean of the group is used for prediction. We want to grow the tree as big as we can, and then prune it back using cost-complexity pruning. This is done to not overfit the data, but pruning increases the bias. The pruning parameter needs to be tuned, which is done automatically in the `caret` package.
 
 The advantage of using a basic tree is that it is easy to understand and has a good interpretability, which is not something that translates over to ensemble methods like the random forest. Additionally, the basic classification or regression tree is not very computationally expensive, unlike the random forest, boosting, and the support vector machine. We used the `caret` and `rpart` packages in R to fit our trees.
+```{r tree, echo=FALSE}
+#### REGRESSION ####
+# Fit basic regression tree model
+tree.reg <- train(form, data = trn, method = "rpart",
+                  trControl = trctrl)
+
+# Obtain RMSE and results
+tree.reg.pred <- predict(tree.reg, newdata = tst)
+tree.reg.rmse <- mean((tree.reg.pred - tst$quality)^2)
+
+# Print out tree visualization
+tree.reg.out <- rpart(form, data = trn, cp = 0.01798144)
+rpart.plot(tree.reg.out, main="Regression Tree")
+
+#### HOTEL 2 ####
+# Fit classification tree model
+tree.class <- train(form, data = trn, method = "rpart",
+                    trControl = trctrl)
+
+# Obtain confusion matrix and results for H2
+tree.class.pred <- predict(tree.class, newdata = tst)
+tree.class.CM <- confusionMatrix(tree.class.pred, tst$class)
+tree.class.res <- c(tree.class.CM$overall[1], tree.class.CM$byClass[1:2])
+
+# Print out tree visualization
+tree.class.out <- rpart(form, data = trn, cp = 0.01798144)
+rpart.plot(tree.class.out, main="Classification Tree")
+
+# Print out confusion matrix
+# list("Confusion Matrix for H1" = h1.tree.CM$table,
+#      "Confusion Matrix for H2" = h2.tree.CM$table)
+```  
 
 ## Random Forest  
 The random forest model is an ensemble tree-based method, which creates multiple trees from bootstrap samples and averages the results. Many bootstrap samples are created with replacement and then a classification tree is fitted on each bootstrap sample with a random subset of the predictors. Once a prediction has been made by all of the bootstrapped trees, the final classification is based on majority vote of the bootstrap predictions. Similarly, the prediction in the regression context is an average of all of the predictions of the bootstrapped trees.
 
 The advantage for using an ensemble method over a regular classification or regression tree is that because there are many bootstrap samples being averaged together, there is less variance. This is similar to how the variance of the sample mean goes down as the sample size increases. Although it will probably increase our prediction accuracy, the random forest loses the interpretability that the basic trees have. Furthermore, the algorithm that is used to fit the random forest is very computationally expensive.  
 
-To train our model, we used the `randomForest` and `caret` packages in R. The maximum number of predictors for a bootstrap sample as well as the number of trees in the forest are both parameters that need tuning. Again, we will use the "best" tune, automatically given to us by the `caret` package.  
+To train our model, we used the `randomForest` and `caret` packages in R. The maximum number of predictors for a bootstrap sample as well as the number of trees in the forest are both parameters that need tuning. Again, we will use the "best" tune, automatically given to us by the `caret` package. 
+
+```{r rf, echo=FALSE}
+#### REGRESSION ####
+# Formula for random forest
+form.rf <- 
+
+# Fit the regression random forest model 
+rf.reg <- train(form.rf, data = trn, method = "rf",
+                trControl = trctrl, importance = TRUE)
+
+# Obtain RMSE and results
+rf.reg.pred <- predict(rf.reg, newdata = tst)
+rf.reg.rmse <- mean((rf.reg.pred - tst$quality)^2)
+
+#### CLASSIFICATION ####
+# Fit the classification random forest model
+rf.class <- train(form.rf, data = trn, method = "rf",
+                trControl = trctrl, importance = TRUE)
+
+# Obtain confusion matrix and results
+rf.class.pred <- predict(rf.class, newdata = tst)
+rf.class.CM <- confusionMatrix(rf.class.pred, tst$class)
+rf.class.res <- c(rf.class.CM$overall[1], rf.class.CM$byClass[1:2])
+
+# Print out confusion matrix
+# list("Confusion Matrix for H1" = h1.rf.CM$table,
+#      "Confusion Matrix for H2" = h2.rf.CM$table)
+```  
 
 ## Support Vector Machine  
 A support vector machine is a type of classification rule where it essentially maximizes the margin between groups by choosing the "line" with the widest "margin", but allowing for error. We put "line" in quotation marks because with higher-dimensional data, the "line" is actually a hyper-plane-thing. Similarly, the "margin" doesn't actually exist the in sense of a clean margin between two things, since we are allowing for some sort of error. The support vectors are the points closest to the middle that carry the most weight when classifying, since they are the most prone to error and are deciding factors of where the classification line could go. We used a radial kernel function to deal with the non-linearity and higher-dimensions. 
 
 The support vector machine is pretty effective in higher-dimensional spaces, but doesn't perform very well with very large data sets with lots of noise. If we were to look at hotels with millions of records, a support vector machine may not be suitable. We fit our SVM using the `kernlab` and `caret` packages in R. 
+
+```{r svm}
+#### CLASSIFICATION ####
+# Define formula for SVM model
+form.svm <- 
+
+# Fit support vector machine for H1
+svm.class <- train(form.svm, data = trn, method = "svmRadial", 
+                   preProcess = c("center", "scale"),
+                   trControl = trctrl, tuneLength = 10)
+
+# Obtain confusion matrix and results for H1
+svm.class.pred <- predict(svm.class, newdata = tst)
+svm.class.CM <- confusionMatrix(svm.class.pred, tst$class)
+svm.class.res <- c(svm.class.CM$overall[1], svm.class.CM$byClass[1:2])
+```
 
 ## K-Nearest Neighbors (KNN)  
 K-NN is a "model free" approach, meaning that it doesn't assume any probability model on the data. Given an observation, $\boldsymbol{x}$, we want to find the k training observations that are "closest" to $\boldsymbol{x}$, and then either classify the new observation using majority vote among these k neighbors or predict the new observation by averaging the closest k neighbors. We define "closeness" based on Euclidean distance in our model. As this is the case, we need to center and scale the data, so that different scales of measurement are kept constant.
@@ -128,8 +209,32 @@ The K-nearest neighbors model is relatively intuitive and simple and has no unde
 
 The number (k) of closest neighbors is a parameter that needs tuning. We used the `class` and `caret` packages in R to fit this model. Based on our cross-validation, we used a k value of 5.
 
+```{r knn}
+#### REGRESSION ####
+# Define formula for KNN model
+form.knn <- 
+
+# Fit knn model for H1
+knn.reg <- train(form.knn, data = trn, method = "knn",
+                 trControl = trctrl, preProcess = c("center", "scale"))
+
+# Obtain RMSE and results
+knn.reg.pred <- predict(knn.reg, newdata = tst)
+knn.reg.rmse <- mean((knn.reg.pred - tst$quality)^2)
+
+#### CLASSIFICATION ####
+# Fit knn model for H2
+knn.class <- train(form.kn, data = trn, method = "knn",
+                   trControl=trctrl, preProcess = c("center", "scale"))
+
+# Obtain confusion matrix and results for H2
+knn.class.pred <- predict(knn.class, newdata = tst)
+knn.class.CM <- confusionMatrix(knn.class.pred, tst$class)
+knn.class.res <- c(knn.class.CM$overall[1], knn.class.CM$byClass[1:2])
+```
+
 ## Logistic Regression  
-The logistic regression model uses the "logit" function $log(\frac{p}{1-p})$, which links the mean to the linear form of the regression model, $\boldsymbol{X\beta}$. Using it for binary classification, we round the fitted values either up or down to 1 or 0. The logistic regression function is defined as  
+The logistic regression model uses the "logit" function, $log(\frac{p}{1-p})$, which links the mean to the linear form of the regression model, $\boldsymbol{X\beta}$. Using it for binary classification, we round the fitted values either up or down to 1 or 0. The logistic regression function is defined as  
 $$
 \ln \left( \frac{p(x)}{1-p(x)} \right) = x'\beta, \qquad \text{where }p(x) = (1+e^{-x'\beta})
 $$
@@ -180,3 +285,6 @@ The multiple linear regression model is subject to the following assumptions abo
   
 The biggest benefit to using a multiple linear regression model is its interpretability and ease of use. The coefficients can be computed efficiently and they are have clear and easy interpretations. It is also possible to make inference on any of the variables or linear combination of variables. The most signficiant drawback of using the multiple linear regression model is that, like the logistic regression model, it is subject to distributional assumptions, meaning that if the assumptions are violated, our estimates and inference will be unstable at best and invalid at worst. 
 
+# Results
+
+# Conclusion
