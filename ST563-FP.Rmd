@@ -95,7 +95,7 @@ Each entry in the dataset represents the different metrics of the following attr
 ## Data Exploration
 The first thing that I did with the data upon reading it in was take the numeric variables and create pairwise scatterplots. This way, we can get a feel for what variables are related as well as what the correlation structure looks like, since variables that are very related may cause problems moving forward.
 
-```{r pairs}
+```{r pairs, fig.align="center", out.width='4in', out.height='3.5in'}
 # Create pairwise scatterplots
 pairs(wine[,c(2,5,7,8,9,10,11)])
 ```
@@ -473,6 +473,9 @@ The fact that the random forest so drastically outperformed the basic classifica
 \newpage
 
 # Conclusion  
+Hotels often suffer losses in revenue due to room vacancies that result from cancellations. Hotels can implement stringent cancellation policies as well as overbooking procedures to try and mitigate this loss in revenue. As analytics solutions are becoming more and more popular in the agriculture industry, we sought to apply machine learning learning models in an attempt to find . Hotel managers could use the results of a machine learning algorithm to take action based on knowledge of forecasted cancellations or demand.
+
+Based on the results of our study, we were able to predict the cancellation of a given room with about 75-80% accuracy. Although this is a *good* result considering the non-information rate of 54%, it is by no means excellent. These results indicate that machine learning algorithms could be a good technique for predicting cancellations, but that there is room for improvement. With a more formal, industry expert-guided variable selection process, we believe that higher prediction accuracies can be achieved. Machine learning models could potentially be combined with other techniques to help optimize revenue from bookings. 
 
 ## Limitations  
 The multiple linear regression and logistic regression models were both subject to certain distributional and model assumptions, which were not explicitly tested or checked. Since the objective of this project was to predict rather than make inference, we did explicitly check the model assumptions.
