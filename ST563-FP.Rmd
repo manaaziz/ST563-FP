@@ -91,8 +91,29 @@ Each entry in the dataset represents the different metrics of the following attr
   * **sulphates**: quantity of sulphates in the wine. Sulphates are used as a preservative.
   * **alcohol**: alcohol content by volume.
   * **quality**: score of quality of the wine given by expert tasters (score between 0 and 10).
-  
-# Methods  
+
+## Data Exploration
+The first thing that I did with the data upon reading it in was take the numeric variables and create pairwise scatterplots. This way, we can get a feel for what variables are related as well as what the correlation structure looks like, since variables that are very related may cause problems moving forward.
+
+```{r pairs}
+# Create pairwise scatterplots
+pairs(wine[,c(2,5,7,8,9,10,11)])
+```
+Based on the pairwise scatterplots, we suspect that pH may be linearly correlated with density, sulphates, and alcohol. This leads me to believe that there is some relationship between the chemical properties of the wines. The following correlation plot gives a numeric summary of the linear relationship between the variables.
+
+```{r corrplot, echo = FALSE, fig.align='center', out.height='4in', out.width='4in'}
+# Create visualization of correlation structure
+p.mat <- cor.mtest(wine[,c(2,5,7,8,9,10,11)])$p
+corrplot(cor(wine[,c(2,5,7,8,9,10,11)]),
+         method = "color", type = "upper", order = "hclust", 
+         number.cex = .7, addCoef.col = "black",
+         tl.col = "black", tl.srt = 90,
+         p.mat = p.mat, sig.level = 0.01, insig = "blank", 
+         diag = T)
+```
+
+The only linear correlations that are on the higher side are between alcohol and density, which makes sense because the density of alcohol is slightly less than water. So as the concentration of alcohol gets higher, the density will naturally decrease. Similarly, the sulphates and chlorides seem to have a slightly positive linear relationship, while pH and density have a slightly negative linear relationship.
+
 ## Data Processing
 ```{r partition}
 # Prepare data for classification
@@ -106,8 +127,9 @@ trn <- wine[ind,]
 tst <- wine[-ind,]
 ```
 
-Fortunately, the `wine` dataset that we worked with was very tidy; there was no missing values. We didn't standardize the data initially, but when training the support vector machine as well as the k-nearest neighbors models we centered and scaled the data.
+Fortunately, the `wine` dataset that we worked with was very tidy; there were no missing values. We didn't standardize the data initially, but when training the support vector machine and the k-nearest neighbors models we centered and scaled the data.
 
+# Methods
 ## Cross Validation
 As mentioned in the introduction, our focus is on the classification accuracy of machine learning methods. In particular, we will be using traditional cross-validation methods to assess the accuracy, sensitivity, and specificity of each of the models. We split the data into a training and test data set in order to later evaluate the model's prediction accuracy. For this project we used a 75/25 split, training the data on the 75% and testing the trained models on the withheld 25%. We will then repeat this process over 5 folds of the data, averaging the results.
 
@@ -343,6 +365,7 @@ where $\lambda$ is the penalty parameter, with p different predictors.
 The main benefits of using LASSO are the variable selection property, the computational efficiency, and the interpretability. Plus, as with any regularization method, it can help to avoid overfitting with a very flexible model. On the other hand, some of the pitfalls of LASSO are that the selected variables could be highly biased, correlation among predictors is not very well dealt with, and the feature selection may not be stable over different bootstrapped samples.
 
 To fit the LASSO regression model, we used the `glmnet` package in R.
+
 ```{r lasso}
 #### REGRESSION ####
 # Fit LASSO to the data
@@ -389,7 +412,8 @@ $$
 \end{aligned}
 $$
 
-The multiple linear regression model is subject to the following assumptions about the data:
+The multiple linear regression model is subject to the following assumptions about the data:  
+
   * Linear relationship between response and predictors
   * No collinearity between predictor variables
   * $y_i$'s are iid
@@ -444,10 +468,29 @@ kable(df.class, caption = "Classification Model Results", format = "latex") %>%
 
 Based on the output, the best model for both classification and regression was the random forest. This was not a surprise, since the ensemble methods tend to outperform regular methods. This is further exemplified by the lower-than-average root MSE of the boosted tree model. The other models all did about the same in terms of prediction accuracy. For classification, all of the non-aforementioned methods were in the low 70s in terms of prediction accuracy, while the non-ensemble regression models had root MSEs right around 0.65. 
 
-# Conclusion
+The fact that the random forest so drastically outperformed the basic classification tree did not come as a surprise, since as an average of many classification trees, ensemble methods generally improve prediction accuracy and reduce overall variance. We suspect that other ensemble methods, such as bagging or boosting, may also be able to get higher prediction accuracies. One of the main disadvantages to using ensemble techniques like the random forest is the fact that they tend to be very computationally intensive. The basic classification tree, logistic regression, and KNN models took significantly less time to run than the random forest and the SVM. If we wanted to run an ensemble method on a very large data set with a lot of features, it would be a computational nightmare.
 
-# Appendix
-```{r, eval=FALSE, echo=TRUE}
+\newpage
+
+# Conclusion  
+
+## Limitations  
+The multiple linear regression and logistic regression models were both subject to certain distributional and model assumptions, which were not explicitly tested or checked. Since the objective of this project was to predict rather than make inference, we did explicitly check the model assumptions.
+
+All of the wines in the dataset come from wineries in Portugal, and although they are from different wineries, we worry that the results may not be generalizable to wine production globally. Similarly, will these prediction results hold when it comes to white wine, rose, or sparkling wine? Given this variability over location and type of wine, what can we say about the winemaking industry as a whole?
+
+Some of the wine regions have more strict standards for the designations of wine quality. For example, regions like Bordeaux and Champagne in France have some of the highest standards in the world for their wines, which are much different than somewhere like Greece or New Zealand. How accurate will are predictions be when there are different standards and how might we account for that variation?
+
+## Further Research  
+Since this study solely looks at the prediction accuracy of machine learning techniques for red wines, the natural extension of the analysis would to verify that the results hold constant for white wines as well. The University of California, Irvine Machine Learning database has data on white wines, so that would be a good place to start.
+
+The characteristics of any given wine are often derived from different geological and/or climatological
+conditions. For example, a wine that comes from a region close enough to the water to get a sea breeze may have a hint of saltiness in its aroma or taste. Similarly, a grape coming from a relatively young grove might give the wine different features than if the grove were hundreds of years old. It would be interesting to see how different weather conditions, terroirs, plant ages, and slopes affect the outcome of the wine in terms of quality. 
+
+\newpage
+
+# Appendix  
+```{r appendix, eval=FALSE, echo=TRUE}
 #### SETUP STUFF ####
 # Set default chunk options
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
