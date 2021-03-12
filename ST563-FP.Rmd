@@ -44,6 +44,7 @@ There has been a push towards the implementation of different analytics solution
 In this study, our objective is to try and predict the quality of wine using a variety of statistical learning techniques. We will look at this problem from a regression standpoint as well as a classification standpoint. Using regression, we will try and predict the exact rating (0 to 10) of a particular wine. On the other hand, when we look at classification, we will try to classify a particular wine as either good or bad, taking wines rated from 0-5 as low quality wines and wines rated from 6-10 as high quality wines. We will be assessing the prediction accuracy of the following methods:
 
 ```{r methods}
+# Make table of methods
 cl <- c("Classification Tree", "Random Forest", "Support Vector Machine (SVM)",
         "KNN Classification", "Logistic Regression")
 reg <- c("Boosted Tree", "Random Forest", "Multiple Linear Regression (MLR)", 
@@ -283,7 +284,7 @@ The number (k) of closest neighbors is a parameter that needs tuning. We used th
 
 ```{r knn}
 #### REGRESSION ####
-# Fit knn model for H1
+# Fit knn regression model
 knn.reg <- train(form.reg, data = trn, method = "knn",
                  trControl = trctrl, preProcess = c("center", "scale"))
 
@@ -292,11 +293,11 @@ knn.reg.pred <- predict(knn.reg, newdata = tst)
 knn.reg.rmse <- sqrt(mean((knn.reg.pred - tst$quality)^2))
 
 #### CLASSIFICATION ####
-# Fit knn model for H2
+# Fit knn classification model
 knn.class <- train(form.class, data = trn, method = "knn",
                    trControl=trctrl, preProcess = c("center", "scale"))
 
-# Obtain confusion matrix and results for H2
+# Obtain confusion matrix and results
 knn.class.pred <- predict(knn.class, newdata = tst)
 knn.class.CM <- confusionMatrix(knn.class.pred, tst$class)
 knn.class.res <- c(knn.class.CM$overall[1], knn.class.CM$byClass[1:2])
@@ -441,5 +442,238 @@ kable(df.class, caption = "Classification Model Results", format = "latex") %>%
   kable_styling(latex_options = "HOLD_position")
 ```
 
+Based on the output, the best model for both classification and regression was the random forest. This was not a surprise, since the ensemble methods tend to outperform regular methods. This is further exemplified by the lower-than-average root MSE of the boosted tree model. The other models all did about the same in terms of prediction accuracy. For classification, all of the non-aforementioned methods were in the low 70s in terms of prediction accuracy, while the non-ensemble regression models had root MSEs right around 0.65. 
+
 # Conclusion
+
+# Appendix
+```{r, eval=FALSE, echo=TRUE}
+#### SETUP STUFF ####
+# Set default chunk options
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+
+# Load necessary libraries
+library(tidyverse) # so many things
+library(knitr) # making nice tables
+library(caret) # training models & CV
+library(leaps) # subset selection
+library(corrplot) # visualize correlation
+library(rmarkdown) # for output documents
+library(rpart) # fitting classification tree
+library(rpart.plot) # visualization of classification tree
+library(randomForest) # fitting random forest model
+library(kernlab) # fitting SVM
+library(class) # fitting kNN model
+library(glmnet) # fitting LASSO 
+library(gbm) # fitting the boosted tree model
+library(kableExtra) # making bolded headers for tables
+
+# Read in data set
+wine <- read.csv2(file = "winequality-red.csv", header = TRUE, dec = ".",
+                  colClasses = c(rep("double", 7), rep("double", 4), "integer"))
+
+# Set seed for reproducibility
+set.seed(702)
+
+#### METHODS TABLE ####
+# Make table of methods
+cl <- c("Classification Tree", "Random Forest", "Support Vector Machine (SVM)",
+        "KNN Classification", "Logistic Regression")
+reg <- c("Boosted Tree", "Random Forest", "Multiple Linear Regression (MLR)", 
+          "KNN Regression", "LASSO Regression")
+kable(data.frame("Classification" = cl, "Regression" = reg), caption = "ML Methods") %>% 
+  row_spec(0, bold=TRUE) %>% collapse_rows(columns = 1, latex_hline = "none") %>% 
+  kable_styling(latex_options = "hold_position")
+
+#### DATA PARTITIONING ####
+# Prepare data for classification
+wine$class <- ifelse(wine$quality <= 5, "low", "high") %>% as.factor()
+
+# Create Data Partition
+ind <- createDataPartition(wine$quality, p = .75, list = FALSE)
+
+# Create train/test data for H1
+trn <- wine[ind,]
+tst <- wine[-ind,]
+
+#### CROSS VALIDATIONN ####
+# Specify the cross-validation method (5-fold CV)
+trctrl <- trainControl(method = "cv", number = 5)
+
+#### VARIABLE SELECTION ####
+# Write preliminary model  
+model.class.pre <- class ~ .
+
+# Fit preliminary random forest on entire data set
+rf.class.pre <- randomForest(model.class.pre, data = wine[,-12], 
+                             ntree = 500, mtry = 3, importance = TRUE)
+
+# Create data frame of variable importance
+df.class.pre <- rf.class.pre$importance %>% as.data.frame()
+X <- rownames(df.class.pre)
+
+# Sort the data frame and prep for plot
+VIrf.pre.class.sort <- df.class.pre[order(df.class.pre[,"MeanDecreaseAccuracy"]), , drop = FALSE]
+VIrf.pre.class.sort$X <- rownames(VIrf.pre.class.sort)
+VIrf.pre.class.sort$X <- factor(VIrf.pre.class.sort$X, levels = VIrf.pre.class.sort$X)
+
+# Plot variable importance
+vimp.class <- ggplot(VIrf.pre.class.sort, aes(x = X, y = MeanDecreaseAccuracy)) +
+                geom_bar(stat = 'identity', position = 'dodge', fill="lightblue") +
+                theme(axis.text.x = element_text(angle = 30, hjust = 1)) +
+                ylab("Mean Decrease in Accuracy") + xlab("Predictor") +
+                ggtitle("Variable Importance") + 
+                geom_hline(yintercept = .005, lty = 2, colour = "darkblue")
+vimp.class
+
+# Create model and get summary output
+lm.sub <- regsubsets(quality ~ ., data = wine[,-13], nvmax = 11)
+smre <- lm.sub %>% summary()
+
+# Plot the Cp, BIC, R^2, RSS results in one plot
+par(mfrow = c(2,2))
+plot(smre$cp, xlab = "# of Preds", ylab = "Cp")
+points(which.min(smre$cp), smre$cp[which.min(smre$cp)], pch = 8, col = "#CC0000")
+plot(smre$bic, xlab = "# of Preds", ylab = "BIC")
+points(which.min(smre$bic), smre$bic[which.min(smre$bic)], pch = 8, col = "#CC0000")
+plot(smre$adjr2, xlab = "# of Preds", ylab = "Adjusted R^2")
+points(which.max(smre$adjr2), smre$adjr2[which.max(smre$adjr2)], pch = 8, col = "#CC0000")
+plot(smre$rss, xlab = "# of Preds", ylab = "Training RSS")
+points(which.min(smre$rss), smre$rss[which.min(smre$rss)], pch = 8, col = "#CC0000")
+
+# Best subset selection
+best.betas <- coef(lm.sub, id = 6) %>% round(2)
+
+#### WRITE FORMULAS ####
+# Write formula for regression models
+form.reg <- quality ~ volatile.acidity + chlorides + pH + 
+            total.sulfur.dioxide + sulphates + alcohol
+
+# Write formula for classification models
+form.class <- class ~ alcohol + sulphates + density +
+              volatile.acidity + total.sulfur.dioxide
+
+#### BASIC CLASSIFICATION TREE ####
+# Fit classification tree model
+tree.class <- train(form.class, data = trn, method = "rpart",
+                    trControl = trctrl)
+
+# Obtain confusion matrix and results for H2
+tree.class.pred <- predict(tree.class, newdata = tst)
+tree.class.CM <- confusionMatrix(tree.class.pred, tst$class)
+tree.class.res <- c(tree.class.CM$overall[1], tree.class.CM$byClass[1:2])
+
+# Print out classification tree visualization
+tree.class.out <- rpart(form.class, data = trn, cp = 0.01971326)
+rpart.plot(tree.class.out, main="Classification Tree")
+
+#### RANDOM FOREST ####
+# Fit the regression random forest model 
+rf.reg <- train(form.reg, data = trn, method = "rf",
+                trControl = trctrl, importance = TRUE)
+
+# Obtain RMSE and results
+rf.reg.pred <- predict(rf.reg, newdata = tst)
+rf.reg.rmse <- sqrt(mean((rf.reg.pred - tst$quality)^2))
+
+# Fit the classification random forest model
+rf.class <- train(form.class, data = trn, method = "rf",
+                trControl = trctrl, importance = TRUE)
+
+# Obtain confusion matrix and results
+rf.class.pred <- predict(rf.class, newdata = tst)
+rf.class.CM <- confusionMatrix(rf.class.pred, tst$class)
+rf.class.res <- c(rf.class.CM$overall[1], rf.class.CM$byClass[1:2])
+
+#### SUPPORT VECTOR MACHINE ####
+# Fit support vector machine for H1
+svm.class <- train(form.class, data = trn, method = "svmRadial", 
+                   preProcess = c("center", "scale"),
+                   trControl = trctrl, tuneLength = 10)
+
+# Obtain confusion matrix and results for H1
+svm.class.pred <- predict(svm.class, newdata = tst)
+svm.class.CM <- confusionMatrix(svm.class.pred, tst$class)
+svm.class.res <- c(svm.class.CM$overall[1], svm.class.CM$byClass[1:2])
+
+#### KNN ####
+# Fit knn regression model
+knn.reg <- train(form.reg, data = trn, method = "knn",
+                 trControl = trctrl, preProcess = c("center", "scale"))
+
+# Obtain RMSE and results
+knn.reg.pred <- predict(knn.reg, newdata = tst)
+knn.reg.rmse <- sqrt(mean((knn.reg.pred - tst$quality)^2))
+
+# Fit knn classification model
+knn.class <- train(form.class, data = trn, method = "knn",
+                   trControl=trctrl, preProcess = c("center", "scale"))
+
+# Obtain confusion matrix and results
+knn.class.pred <- predict(knn.class, newdata = tst)
+knn.class.CM <- confusionMatrix(knn.class.pred, tst$class)
+knn.class.res <- c(knn.class.CM$overall[1], knn.class.CM$byClass[1:2])
+
+#### LOGISTIC REGRESSION ####
+# Fit logistic regression model
+glm.class <- glm(form.class, data = trn, family = binomial(link = "logit"))
+
+# Obtain confusion matrix and results for H2
+glm.class.pred <- predict(glm.class, newdata = tst, type = "response")
+glm.class.pred <- glm.class.pred %>% round() %>% as.factor()
+glm.class.CM <- confusionMatrix(glm.class.pred, ifelse(tst$class == "low", 1, 0) %>% as.factor())
+glm.class.res <- c(glm.class.CM$overall[1], glm.class.CM$byClass[1:2])
+
+#### LASSO ####
+# Fit LASSO to the data
+lasso.reg <- train(form.reg, data = trn, method = "glmnet", trControl = trctrl, 
+                   tuneGrid = expand.grid(.alpha=1, .lambda=0.00175))
+
+lasso.reg.pred <- predict(lasso.reg, newdata = tst)
+lasso.reg.rmse <- sqrt(mean((lasso.reg.pred - tst$quality)^2))
+
+#### BOOSTING ####
+# Fit the regression boosted tree model 
+boost.reg <- train(form.reg, data = trn, method = "gbm",
+                trControl = trctrl, verbose = FALSE)
+
+# Obtain RMSE and results
+boost.reg.pred <- predict(boost.reg, newdata = tst)
+boost.reg.rmse <- sqrt(mean((boost.reg.pred - tst$quality)^2))
+
+#### MLR ####
+lm.reg <- train(form.reg, data = trn, method = "lm",
+                trControl = trctrl)
+
+# Obtain RMSE and results for linear model
+lm.reg.pred <- predict(lm.reg, newdata = tst)
+lm.reg.rmse <- sqrt(mean((lm.reg.pred - tst$quality)^2))
+
+#### OUTPUT RESULTS ####
+# Create data frame output for regression models
+df.reg <- rbind.data.frame(boost.reg.rmse, rf.reg.rmse,
+                           lm.reg.rmse, knn.reg.rmse, 
+                           lasso.reg.rmse) %>% round(4)
+df.reg$method <- reg
+colnames(df.reg) <- c(LETTERS[1:2])
+df.reg <- df.reg %>% select("B", "A")
+colnames(df.reg) <- c("Regression Method", "Root MSE")
+
+# Create data frame output for classification models
+df.class <- rbind.data.frame(tree.class.res, rf.class.res, 
+                             svm.class.res, knn.class.res, 
+                             glm.class.res) %>% round(4)
+df.class$method <- cl
+colnames(df.class) <- c("A", "B", "C", "D")
+df.class <- df.class %>% select("D", "A", "B", "C")
+colnames(df.class) <- c("Classification Method", "Accuracy", "Sensitivity", "Specificity")
+
+# Smash tables next to each other using kable
+kable(df.reg, caption = "Regression Model Results", format = "latex") %>% 
+  row_spec(0, bold=TRUE) %>% collapse_rows(columns = 1, latex_hline = "none") %>%
+  kable_styling(latex_options = "HOLD_position")
+kable(df.class, caption = "Classification Model Results", format = "latex") %>% 
+  row_spec(0, bold=TRUE) %>% collapse_rows(columns = 1, latex_hline = "none") %>%
+  kable_styling(latex_options = "HOLD_position")
+```
 
