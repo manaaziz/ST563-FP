@@ -6,6 +6,7 @@ output:
   pdf_document:
     toc: true
     toc_depth: 1
+fontsize: 12pt
 ---
 
 ```{r setup, include=FALSE}
@@ -39,7 +40,7 @@ set.seed(702)
 \newpage
 
 # Introduction
-There has been a push towards the implementation of different analytics solutions within the agriculture industry, especially in the realms of crop health and yield. These sort of analyses can help farmers to reduce waste and improve profits. In particular, the viticulture industry stands to benefit from such methods, being that the production of wine is multifaceted. Winemakers can work to optimize revenue by analyzing their input and output (crops and wines). Specifically, costs may be cut out if machine learning methods were able to predict the quality of wine based on different metrics, since wine producers would no longer have to hire expert wine tasters to determine wine quality. 
+There has been a push towards the implementation of different analytics solutions within the agriculture industry, especially in the realms of crop health and yield. These sort of analyses can help farmers reduce waste and improve profits. In particular, the viticulture industry stands to benefit from such methods, being that the production of wine is lengthy and multifaceted. Winemakers can work to optimize revenue by analyzing their input and output (crops and wines). Specifically, costs may be cut out if machine learning methods were able to predict the quality of wine based on different metrics, since wine producers would no longer have to hire expert wine tasters to determine wine quality. 
 
 In this study, our objective is to try and predict the quality of wine using a variety of statistical learning techniques. We will look at this problem from a regression standpoint as well as a classification standpoint. Using regression, we will try and predict the exact rating (0 to 10) of a particular wine. On the other hand, when we look at classification, we will try to classify a particular wine as either good or bad, taking wines rated from 0-5 as low quality wines and wines rated from 6-10 as high quality wines. We will be assessing the prediction accuracy of the following methods:
 
@@ -71,10 +72,8 @@ To run the code for the project, the following libraries are required:
   * `glmnet`: fitting the LASSO model
   * `gbm`: fitting the boosted tree model
 
-\newpage
-
 # Data
-The data set used is the `Wine Quality` dataset from the UCI Machine Learning Repository. The data set is composed of 1600 observations of different variants of the Portuguese "Vinho Verde" red wine. For each wine, various features of the wine were measured, including a measurement of quality, given by an expert wine taster. Our objective is to use the different features to predict the quality of the wine using different machine learning techniques.
+The data set used is the `Wine Quality` dataset from the UCI Machine Learning Repository. The data set is composed of 1600 observations of different variants of the Portuguese "Vinho Verde" red wine. For each wine, various physical and chemical features of the wine were measured, including a measurement of quality given by an expert wine taster. Our objective is to use the different features to predict the quality of the wine using different machine learning techniques.
 
 ## Variable Descriptions  
 Each entry in the dataset represents the different metrics of the following attributes of a single type of wine.
@@ -93,13 +92,13 @@ Each entry in the dataset represents the different metrics of the following attr
   * **quality**: score of quality of the wine given by expert tasters (score between 0 and 10).
 
 ## Data Exploration
-The first thing that I did with the data upon reading it in was take the numeric variables and create pairwise scatterplots. This way, we can get a feel for what variables are related as well as what the correlation structure looks like, since variables that are very related may cause problems moving forward.
+The first thing that we did with the data upon reading it in was take the numeric variables and create pairwise scatterplots. This way, we can get a feel for what variables are related as well as what the correlation structure looks like, since variables that are very related may cause problems moving forward.
 
 ```{r pairs, fig.align="center", out.width='4in', out.height='3.5in'}
 # Create pairwise scatterplots
 pairs(wine[,c(2,5,7,8,9,10,11)])
 ```
-Based on the pairwise scatterplots, we suspect that pH may be linearly correlated with density, sulphates, and alcohol. This leads me to believe that there is some relationship between the chemical properties of the wines. The following correlation plot gives a numeric summary of the linear relationship between the variables.
+Based on the pairwise scatterplots, we suspect that pH may be linearly correlated with density, sulphates, and alcohol. This leads us to believe that there is some relationship between the chemical properties of the wines. The following correlation plot gives a numeric summary of the linear relationship between the variables.
 
 ```{r corrplot, echo = FALSE, fig.align='center', out.height='4in', out.width='4in'}
 # Create visualization of correlation structure
@@ -127,11 +126,11 @@ trn <- wine[ind,]
 tst <- wine[-ind,]
 ```
 
-Fortunately, the `wine` dataset that we worked with was very tidy; there were no missing values. We didn't standardize the data initially, but when training the support vector machine and the k-nearest neighbors models we centered and scaled the data.
+Fortunately, the `wine` dataset that we worked with was very tidy; there were no missing values. We didn't standardize the data initially, but when training the support vector machine and the k-nearest neighbors models we centered and scaled the data. We also created the variable for classification, transforming the quality variable into a binary "low" or "high" response as mentioned in the introduction.
 
 # Methods
 ## Cross Validation
-As mentioned in the introduction, our focus is on the classification accuracy of machine learning methods. In particular, we will be using traditional cross-validation methods to assess the accuracy, sensitivity, and specificity of each of the models. We split the data into a training and test data set in order to later evaluate the model's prediction accuracy. For this project we used a 75/25 split, training the data on the 75% and testing the trained models on the withheld 25%. We will then repeat this process over 5 folds of the data, averaging the results.
+Again, our focus is on the classification accuracy of machine learning methods. In particular, we will be using traditional cross-validation methods to assess the accuracy, sensitivity, and specificity of each of the models. We split the data into a training and test data set in order to later evaluate the model's prediction accuracy or root mean squared error (RMSE). For this project we used a 75/25 split, training the data on the 75% and testing the trained models on the withheld 25%. We will then repeat this process over 5 folds of the data, averaging the results.
 
 The tree-based, LASSO, and K-nearest neighbors models require parameters to be tuned (more on those later). Since we used the `caret` package in R to fit all of our models, we used the tunes of the parameters that were deemed "best" by the `train()` function.
 
@@ -141,7 +140,7 @@ trctrl <- trainControl(method = "cv", number = 5)
 ```
 
 ## Variable Selection
-Since we have two different tasks that we are trying to complete (classification and regression), we went about selecting the variables for each task differently. For the classification task, we ran an initial random forest model on the entire dataset with selected predictors. We then looked at the variable importance of the predictors to decide which variables we would use in our final models. Variable importance, within the context of machine learning, refers to how much a given model "uses" that variable to make accurate predictions. In other words, the more a model relies on a variable to make predictions, the more important it is for the model. 
+Since we have two different tasks that we are trying to complete (classification and regression), we went about selecting the variables for each task differently. For the classification task, we ran an initial random forest model on the entire dataset with selected predictors. We then looked at the variable importance of the predictors to decide which variables we would use in our final models. Within the context of machine learning, variable importance refers to how much a given model "uses" that variable to make accurate predictions. In other words, the more a model relies on a variable to make predictions, the more important it is for the model. 
 
 ```{r class.select, fig.align="center", out.width='4in'}
 # Write preliminary model  
@@ -165,14 +164,13 @@ vimp.class <- ggplot(VIrf.pre.class.sort, aes(x = X, y = MeanDecreaseAccuracy)) 
                 geom_bar(stat = 'identity', position = 'dodge', fill="lightblue") +
                 theme(axis.text.x = element_text(angle = 30, hjust = 1)) +
                 ylab("Mean Decrease in Accuracy") + xlab("Predictor") +
-                ggtitle("Variable Importance") + 
-                geom_hline(yintercept = .005, lty = 2, colour = "darkblue")
+                ggtitle("Variable Importance")
 vimp.class
 ```  
 
-We decided to choose the variables with a variable importance over .005, leaving us with `alcohol`, `sulphates`, `volatile.acidity`, `density`, and `total.sulfur.dioxide`. The fact that density proved to be an important variable for classification was relatively surprising. One would think that the wine quality would be determined based on its attributes that are detectable by the human senses. For this same reason, alcohol, acidity, and sulphates made sense in terms of variable importance. Sulphates are essential for the preservation of the wine, an overly- or underly-acidic wine may be considered poor, and the alcohol content has a connection to the fermentation process, where the must (aka the grape juice before it undergoes fermentation) actually becomes wine.
+We decided to choose the five variables with the most variable importance, leaving us with `alcohol`, `sulphates`, `volatile.acidity`, `density`, and `total.sulfur.dioxide`. The fact that density proved to be an important variable for classification was relatively surprising. One would think that the wine quality would be determined based on its attributes that are detectable by the human senses. For this same reason, alcohol, acidity, and sulphates made sense in terms of variable importance. Sulphates are essential for the preservation of the wine, an overly- or underly-acidic wine may be considered poor, and the alcohol content has a connection to the fermentation process, where the must (aka the grape juice before it undergoes fermentation) actually becomes wine.
 
-When looking at the problem in terms of a regression context, we used best subsets selection for feature selection. Using the `leaps` library and `regsubsets` in R, we are able to compare all of the possible models from the given set of predictors. Through best subset selection, we can get the set of predictors for a model with any given amount of predictors. We looked at three different model criteria to compare models of different amounts of predictor variables: Mallow's Cp, BIC, and $R^2_{\text{adj}}$.
+When looking at the problem in terms of a regression context, we used best subsets selection for feature selection. Using the `leaps` library and the `regsubsets()` function in R, we are able to compare all of the possible models from the given set of predictors. Through best subset selection, we can get the set of predictors for a model with any given amount of predictors. We looked at three different model criteria to compare models of different amounts of predictor variables: Mallow's Cp, BIC, and $R^2_{\text{adj}}$.
 
 ```{r reg.select}
 # Create model and get summary output
@@ -194,7 +192,7 @@ points(which.min(smre$rss), smre$rss[which.min(smre$rss)], pch = 8, col = "#CC00
 best.betas <- coef(lm.sub, id = 6) %>% round(2)
 ```
 
-Although each of the three model criteria suggested a different number of predictor variables of a different number, they were all within the same region (between 6 and 8 predictors). Since they were so close, we adhered to the Occam's Razor and went with the simplest, six-variable model. This was the model favored by BIC, which gives the greatest penalty for complexity in models. The six variables used in the regression context are then `volatile.acidity`, `chlorides`, `total.sulfur.dioxide`, `pH`, `sulphates`, and `alcohol`. All of the variables from the classification selection appear here with the exception of density. In the regression context, `pH` was the variable that proved to be a rather unintuitive inclusion, since it is similar to density in the sense that it is not easily detected by the five human senses. The inclusion of these two variables in the model portray the importance of the chemical properties of a bottle of wine when it comes to quality.
+Although each of the three model criteria suggested a different number of predictor variables, they were all within the same region (between 6 and 8 predictors). Since they were so close, we adhered to the Occam's Razor and went with the simplest, six-variable model. This was the model favored by BIC, which gives the greatest penalty for complexity in models. The six variables used in the regression context are then `volatile.acidity`, `chlorides`, `total.sulfur.dioxide`, `pH`, `sulphates`, and `alcohol`. All of the variables from the classification selection appear here with the exception of density. In the regression context, `pH` was the variable that proved to be a rather unintuitive inclusion, since it is similar to density in the sense that it is not easily detected by the five human senses. The inclusion of these two variables in the model portray the importance of the chemical properties of a bottle of wine when it comes to quality.
 
 ```{r form}
 # Write formula for regression models
@@ -208,7 +206,7 @@ form.class <- class ~ alcohol + sulphates + density +
 
 
 ## Basic Tree  
-The basic classification or regression tree is based on partitioning the data into subgroups using simple binary splitting. Initially, all objects are considered a single group. Then, the group is binarily split into two subgroups based on the criteria of a certain variable. In the classification setting, we classify the observations in a specific region with majority vote, while in the context of regression the mean of the group is used for prediction. We want to grow the tree as big as we can, and then prune it back using cost-complexity pruning. This is done to not overfit the data, but pruning increases the bias. The pruning parameter needs to be tuned, which is done automatically in the `caret` package.
+The basic classification or regression tree is based on partitioning the data into subgroups using simple binary splitting. Initially, all objects are considered a single group. Then, the group is repeatedly binarily split into two subgroups based on the criteria of a certain variable. In the classification setting, we classify the observations in a specific region with majority vote, while in the context of regression the mean of the group is used for prediction. We want to grow the tree as big as we can, and then prune it back using cost-complexity pruning. This is done to not overfit the data, but pruning increases the bias. The pruning parameter needs to be tuned, which is done automatically in the `caret` package.
 
 The advantage of using a basic tree is that it is easy to understand and has a good interpretability, which is not something that translates over to ensemble methods like the random forest. Additionally, the basic classification or regression tree is not very computationally expensive, unlike the random forest, boosting, and the support vector machine. We used the `caret` and `rpart` packages in R to fit our trees.
 
@@ -380,9 +378,9 @@ lasso.reg.rmse <- sqrt(mean((lasso.reg.pred - tst$quality)^2))
 ## Boosted Tree
 Boosting is the process of slowly training trees to avoid overfitting. The general approach is as follows: the trees are grown sequentially, where each subsequent tree is grown on a modified version of the original data, while the predictions are continuously updated as the trees are grown. The model has three parameters that need tuning:  
 
-  * $B$ - the number of trees
-  * $\lambda$ - the shrinkage parameter, which is a small positive number that controls the rate at which the boosting learns
-  * $d$ - the number of splits in each tree, which controls the complexity of the boosted ensemble 
+  * $B$: the number of trees
+  * $\lambda$: the shrinkage parameter, which is a small positive number that controls the rate at which the boosting learns
+  * $d$: the number of splits in each tree, which controls the complexity of the boosted ensemble 
 
 The main benefit of using boosting is to reduce overfitting. It often yields the best results in terms of the ensemble learning methods. Like the random forest model, since boosting is an ensemble learning technique, it will have a lower variance than other methods. Also, there is no need to scale down variables or create any dummy variables for categorical variables. All that said, boosting is not without its shortcomings; it does not do well with high dimensionality, it's not very interpretable (since it is a sort of blackbox algorithm), and it is relatively expensive computationally.
 
@@ -457,7 +455,8 @@ colnames(df.class) <- c("Classification Method", "Accuracy", "Sensitivity", "Spe
 ```{r reg.out}
 # Smash tables next to each other using kable
 kable(df.reg, caption = "Regression Model Results", format = "latex") %>% 
-  row_spec(0, bold=TRUE) %>% collapse_rows(columns = 1, latex_hline = "none") %>% kable_styling(latex_options = "HOLD_position")
+  row_spec(0, bold=TRUE) %>% collapse_rows(columns = 1, latex_hline = "none") %>%
+  kable_styling(latex_options = "HOLD_position")
 ```
 
 ```{r class.out}
@@ -468,14 +467,12 @@ kable(df.class, caption = "Classification Model Results", format = "latex") %>%
 
 Based on the output, the best model for both classification and regression was the random forest. This was not a surprise, since the ensemble methods tend to outperform regular methods. This is further exemplified by the lower-than-average root MSE of the boosted tree model. The other models all did about the same in terms of prediction accuracy. For classification, all of the non-aforementioned methods were in the low 70s in terms of prediction accuracy, while the non-ensemble regression models had root MSEs right around 0.65. 
 
-The fact that the random forest so drastically outperformed the basic classification tree did not come as a surprise, since as an average of many classification trees, ensemble methods generally improve prediction accuracy and reduce overall variance. We suspect that other ensemble methods, such as bagging or boosting, may also be able to get higher prediction accuracies. One of the main disadvantages to using ensemble techniques like the random forest is the fact that they tend to be very computationally intensive. The basic classification tree, logistic regression, and KNN models took significantly less time to run than the random forest and the SVM. If we wanted to run an ensemble method on a very large data set with a lot of features, it would be a computational nightmare.
-
-\newpage
+The fact that the random forest and boosted tree models so drastically outperformed the basic classification tree did not come as a surprise, since as an average of many classification trees, ensemble methods generally improve prediction accuracy and reduce overall variance. We suspect that other ensemble methods, such as bagging, may also be able to get higher prediction accuracies. One of the main disadvantages to using ensemble techniques like the random forest is the fact that they tend to be very computationally intensive. The basic classification tree, logistic regression, and KNN models took significantly less time to run than the random forest and the SVM, but they were less accurate in their predictions. If we wanted to run an ensemble method on a very large data set with a lot of features, it would be a computational nightmare.
 
 # Conclusion  
-Hotels often suffer losses in revenue due to room vacancies that result from cancellations. Hotels can implement stringent cancellation policies as well as overbooking procedures to try and mitigate this loss in revenue. As analytics solutions are becoming more and more popular in the agriculture industry, we sought to apply machine learning learning models in an attempt to find . Hotel managers could use the results of a machine learning algorithm to take action based on knowledge of forecasted cancellations or demand.
+With the recent push for quantitative solutions in industries like agriculture, there has been an emphasis on using machine learning to solve a variety of problems requiring prediction and inference. In particular, the viticulture industry stands to gain a lot from such methods, since historically it has not interacted much with the world of analytics. In this study, we went through a number of different machine learning techniques, assessing prediction accuracy in both classification and regression contexts.
 
-Based on the results of our study, we were able to predict the cancellation of a given room with about 75-80% accuracy. Although this is a *good* result considering the non-information rate of 54%, it is by no means excellent. These results indicate that machine learning algorithms could be a good technique for predicting cancellations, but that there is room for improvement. With a more formal, industry expert-guided variable selection process, we believe that higher prediction accuracies can be achieved. Machine learning models could potentially be combined with other techniques to help optimize revenue from bookings. 
+Based on the results of our study, we were able to predict the cancellation of a given room with about 70-80% accuracy. Although this is a *good* result considering the non-information rate of 53%, it is by no means excellent. These results indicate that machine learning algorithms could be a good technique when trying to predict wine quality, but that there is room for improvement. With a more formal, industry expert-guided variable selection process, we believe that higher prediction accuracies can be achieved. Machine learning models could potentially be combined with other techniques to add value to winemakers.
 
 ## Limitations  
 The multiple linear regression and logistic regression models were both subject to certain distributional and model assumptions, which were not explicitly tested or checked. Since the objective of this project was to predict rather than make inference, we did explicitly check the model assumptions.
@@ -492,8 +489,7 @@ conditions. For example, a wine that comes from a region close enough to the wat
 
 \newpage
 
-# Appendix  
-```{r appendix, eval=FALSE, echo=TRUE}
+```{r appendix, eval=FALSE, echo=FALSE}
 #### SETUP STUFF ####
 # Set default chunk options
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
