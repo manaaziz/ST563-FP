@@ -28,6 +28,7 @@ library(class) # fitting kNN model
 library(glmnet) # fitting LASSO 
 library(gbm) # fitting the boosted tree model
 library(kableExtra) # making bolded headers for tables
+library(class) #for KNN
 
 # Read in data set
 wine <- read.csv2(file = "winequality-red.csv", header = TRUE, dec = ".",
@@ -118,8 +119,8 @@ The only linear correlations that are on the higher side are between alcohol and
 # Prepare data for classification
 wine$class <- ifelse(wine$quality <= 5, "low", "high") %>% as.factor()
 
-# Create Data Partition
-ind <- createDataPartition(wine$quality, p = .75, list = FALSE)
+# Create Test and Training Sets
+ind <- sample(length(wine$class), 0.8*length(wine$class))
 
 # Create train/test data for H1
 trn <- wine[ind,]
@@ -314,13 +315,14 @@ knn.reg.rmse <- sqrt(mean((knn.reg.pred - tst$quality)^2))
 
 #### CLASSIFICATION ####
 # Fit knn classification model
-knn.class <- train(form.class, data = trn, method = "knn",
-                   trControl=trctrl, preProcess = c("center", "scale"))
+trn.class <- wine$class[ind]
+trn.knn <- trn[,-13]
+tst.knn <- tst[,-13]
+knn.class <- knn(trn.knn, tst.knn, trn.class, k=5)
 
-# Obtain confusion matrix and results
-knn.class.pred <- predict(knn.class, newdata = tst)
-knn.class.CM <- confusionMatrix(knn.class.pred, tst$class)
-knn.class.res <- c(knn.class.CM$overall[1], knn.class.CM$byClass[1:2])
+# Obtain confusion matrix and misclassification rate
+table(knn.class, tst$class)
+(37+39)/(37+39+140+104)
 
 # Print out results in a list
 #list("RMSE" = knn.reg.rmse,
