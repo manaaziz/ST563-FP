@@ -29,6 +29,7 @@ library(glmnet) # fitting LASSO
 library(gbm) # fitting the boosted tree model
 library(kableExtra) # making bolded headers for tables
 library(class) #for KNN
+library(e1071) #for support vector machine
 
 # Read in data set
 wine <- read.csv2(file = "winequality-red.csv", header = TRUE, dec = ".",
@@ -275,21 +276,17 @@ rf.class.res <- c(rf.class.CM$overall[1], rf.class.CM$byClass[1:2])
 ```  
 
 ## Support Vector Machine  
-A support vector machine is a type of classification rule where it essentially maximizes the margin between groups by choosing the "line" with the widest "margin", but allowing for error. We put "line" in quotation marks because with higher-dimensional data, the "line" is actually a hyper-plane-thing. Similarly, the "margin" doesn't actually exist the in sense of a clean margin between two things, since we are allowing for some sort of error. The support vectors are the points closest to the middle that carry the most weight when classifying, since they are the most prone to error and are deciding factors of where the classification line could go. We used a radial kernel function to deal with the non-linearity and higher-dimensions. 
-
-The support vector machine is pretty effective in higher-dimensional spaces, but doesn't perform very well with very large data sets with lots of noise. If we were to look at hotels with millions of records, a support vector machine may not be suitable. We fit our SVM using the `kernlab` and `caret` packages in R. 
+A support vector machine (SVM) is a classification method, which maximizes the margin between groups by choosing the "line" with the widest "margin", while still allowing for error. Line in quotation marks because with higher-dimensional data, the "line" is a hyperplane. Similarly, the "margin" does not exist in the sense of a clean margin between two, since the model is allowing for some error. The support vectors are the points closest to the middle, these carry the most weight in classification.  This is because they are most prone to error and are deciding factors of where the classification line could go. The SVM was built using cross validation, where multiple SVMs were built using different values for the cost parameter. The `tune()` function builds these models and the best is selected,  in this case the cost parameter of 0.01 was the best. For this data, the SVM correctly predicted all observations. If the data were much larger, one would expect the model to be less effective due to the extra noise.  
 
 ```{r svm}
 #### CLASSIFICATION ####
 # Fit support vector machine for H1
-svm.class <- train(form.class, data = trn, method = "svmRadial", 
-                   preProcess = c("center", "scale"),
-                   trControl = trctrl, tuneLength = 10)
-
+svm.class <- tune(svm, class~ . ,data=trn ,kernel ="linear", ranges=list(cost=c(0.001, 0.01, 0.1, 1,5,10,100) ))
+best.mod <- svm.class$best.model
 # Obtain confusion matrix and results for H1
-svm.class.pred <- predict(svm.class, newdata = tst)
-svm.class.CM <- confusionMatrix(svm.class.pred, tst$class)
-svm.class.res <- c(svm.class.CM$overall[1], svm.class.CM$byClass[1:2])
+svm.class.pred <- predict(best.mod, newdata = tst)
+table(svm.class.pred, tst$class)
+
 
 # Print out results in a list
 #list("Results" = svm.class.res,
