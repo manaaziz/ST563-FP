@@ -11,7 +11,8 @@ fontsize: 12pt
 
 ```{r setup, include=FALSE}
 # Set default chunk options
-knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, 
+                      warning = FALSE, fig.align = "center")
 
 # Load necessary libraries
 library(tidyverse) # so many things
@@ -23,13 +24,8 @@ library(rmarkdown) # for output documents
 library(rpart) # fitting classification tree
 library(rpart.plot) # visualization of classification tree
 library(randomForest) # fitting random forest model
-library(kernlab) # fitting SVM
-library(class) # fitting kNN model
-library(glmnet) # fitting LASSO 
-library(gbm) # fitting the boosted tree model
 library(kableExtra) # making bolded headers for tables
-library(class) #for KNN
-library(e1071) #for support vector machine
+library(gridExtra) # stitching graphs together
 
 # Read in data set
 wine <- read.csv2(file = "winequality-red.csv", header = TRUE, dec = ".",
@@ -90,13 +86,13 @@ Each entry in the dataset represents the different metrics of the following attr
 ## Data Exploration
 The first thing that we did with the data upon reading it in was take the numeric variables and create pairwise scatterplots. This way, we can get a feel for what variables are related as well as what the correlation structure looks like, since variables that are very related may cause problems moving forward.
 
-```{r pairs, fig.align="center", out.width='4in', out.height='3.5in'}
+```{r pairs, out.width='4in', out.height='3.5in'}
 # Create pairwise scatterplots
 pairs(wine[,c(2,5,7,8,9,10,11)])
 ```
 Based on the pairwise scatterplots, we suspect that pH may be linearly correlated with density, sulphates, and alcohol. This leads us to believe that there is some relationship between the chemical properties of the wines. The following correlation plot gives a numeric summary of the linear relationship between the variables.
 
-```{r corrplot, echo = FALSE, fig.align='center', out.height='4in', out.width='4in'}
+```{r corrplot, echo = FALSE, out.height='3.5in'}
 # Create visualization of correlation structure
 p.mat <- cor.mtest(wine[,c(2,5,7,8,9,10,11)])$p
 corrplot(cor(wine[,c(2,5,7,8,9,10,11)]),
@@ -136,7 +132,7 @@ trctrl <- trainControl(method = "cv", number = 5)
 ## Variable Selection
 Since we have two different tasks that we are trying to complete (classification and regression), we went about selecting the variables for each task differently. For the classification task, we ran an initial random forest model on the entire dataset with selected predictors. We then looked at the variable importance of the predictors to decide which variables we would use in our final models. Within the context of machine learning, variable importance refers to how much a given model "uses" that variable to make accurate predictions. In other words, the more a model relies on a variable to make predictions, the more important it is for the model. 
 
-```{r class.select, fig.align="center", out.width='4in'}
+```{r class.select, out.height='4in'}
 # Write preliminary model  
 model.class.pre <- class ~ .
 
@@ -166,7 +162,7 @@ We decided to choose the five variables with the most variable importance, leavi
 
 When looking at the problem in terms of a regression context, we used best subsets selection for feature selection. Using the `leaps` library and the `regsubsets()` function in R, we are able to compare all of the possible models from the given set of predictors. Through best subset selection, we can get the set of predictors for a model with any given amount of predictors. We looked at three different model criteria to compare models of different amounts of predictor variables: Mallow's Cp, BIC, and $R^2_{\text{adj}}$.
 
-```{r reg.select}
+```{r reg.select, out.height='3.5in'}
 # Create model and get summary output
 lm.sub <- regsubsets(quality ~ ., data = wine[,-13], nvmax = 11)
 smre <- lm.sub %>% summary()
@@ -199,7 +195,15 @@ form.class <- class ~ alcohol + sulphates + density +
 ```
 
 ## Multiple Linear Regression
-Multiple Linear Regression is the extension of simple linear regression to a set of multiple predictor variables. The goal of multiple linear regression is to model the linear relationship between a continuous response and two or more predictor variables. Like simple linear regression, coefficient estimates are found by minimizing the sum of the squared errors. The formula for a multiple linear regression model with $p$ predictor variables is as follows:
+```{r mlr}
+#### REGRESSION ####
+lm.reg <- lm(form.reg, data = trn)
+
+# Obtain RMSE and results for linear model
+lm.reg.pred <- predict(lm.reg, newdata = tst)
+lm.reg.rmse <- sqrt(mean((lm.reg.pred - tst$quality)^2))
+```
+Multiple Linear Regression is the extension of simple linear regression to a set of multiple predictor variables. The goal of multiple linear regression is to model the linear relationship between a continuous response and two or more predictor variables. Like simple linear regression, coefficient estimates are found by minimizing the sum of the squared errors. The formula for a multiple linear regression model with $p$ predictor variables is as follows:  
 $$
 \begin{aligned}
 &Y_i = \beta_0 + \beta_1X_{i1} + \beta_2X_{i2} + ... + \beta_pX_{ip} + \epsilon_i, \\
@@ -218,68 +222,90 @@ The multiple linear regression model is subject to the following assumptions abo
   * No collinearity between predictor variables
   * $y_i$'s are iid
   * $\epsilon_i \sim N(0, \sigma^2)$
-  
-The biggest benefit to using a multiple linear regression model is its interpretability and ease of use. The coefficients can be computed efficiently and they are have clear and easy interpretations. It is also possible to make inference on any of the variables or linear combination of variables. The most signficiant drawback of using the multiple linear regression model is that it is subject to distributional assumptions, meaning that if the assumptions are violated, our estimates and inference will be unstable at best and invalid at worst. 
 
-```{r mlr}
-#### REGRESSION ####
-lm.reg <- train(form.reg, data = trn, method = "lm",
-                trControl = trctrl)
+To assess these assumptions, we looked at various diagnostics plots:
+```{r lm.diag, out.height = '3.5in'}
+# Look at residual plot for nonlinearity
+regres <- ggplot(data = data.frame(lm.reg$residuals, lm.reg$fitted.values), 
+                 aes(x = lm.reg$residuals, y = lm.reg$fitted)) + 
+            geom_point(position = 'jitter') + labs(x = "Residuals", y = "Fitted Values") 
 
-# Obtain RMSE and results for linear model
-lm.reg.pred <- predict(lm.reg, newdata = tst)
-lm.reg.rmse <- sqrt(mean((lm.reg.pred - tst$quality)^2))
-#lm.reg.rmse
+# Look at standardized residual plot for outliers
+stdres <- ggplot(data = data.frame(x = 1:length(lm.reg$residuals), 
+                                   y = scale(lm.reg$residuals)), 
+                 aes(y = y, x = x)) + 
+            geom_point() + labs(x = "Index", y = "Standardized Residuals")
+
+# Look at a qqplot to assess normality
+ggqq <- ggplot(data.frame(lm.reg$residuals), aes(sample = lm.reg$residuals)) + 
+          stat_qq() + stat_qq_line(col = "blue", lty = 2) + 
+          labs(x = "Theoretical", y = "Sample")
+
+# Look at residuals vs leverage plot
+reslev <- ggplot(lm.reg, aes(x = .hat, y = .stdresid)) + 
+            geom_point(aes(size = .cooksd)) + 
+            stat_smooth(method = "lm") + 
+            labs( x = "Leverage", y = "Standardized Residuals") + 
+            scale_size_continuous("Cook's D", range = c(1,5)) +
+            theme_bw() + theme(legend.position = "right")
+
+# Stitch all the graphs together
+grid.arrange(regres, stdres, ggqq, reslev, nrow = 2)
 ```
 
-## Classification Tree  
-The basic classification tree is based on partitioning the data into subgroups using simple binary splitting. Initially, all objects are considered a single group. Then, the group is repeatedly binarily split into two subgroups based on the criteria of a certain variable. In the classification setting, we classify the observations in a specific region with majority vote. We want to grow the tree as big as we can, and then prune it back using cost-complexity pruning. This is done to not overfit the data, but pruning increases the bias. The pruning parameter needs to be tuned, which is done automatically in the `caret` package.
+~ talk about residual plots here ~
 
-The advantage of using a basic tree is that it is easy to understand and has a good interpretability, which is not something that translates over to ensemble methods. Additionally, the basic classification tree is not very computationally expensive, unlike the random forest, boosting, and support vector machine. We used the `caret` and `rpart` packages in R to fit our trees.
+The biggest benefit to using a multiple linear regression model is its interpretability and ease of use. The coefficients can be computed efficiently and they are have clear and easy interpretations. It is also possible to make inference on any of the variables or linear combination of variables. The most signficiant drawback of using the multiple linear regression model is that it is subject to distributional assumptions, meaning that if the assumptions are violated, our estimates and inference will be unstable at best and invalid at worst. 
+
+## Classification Tree  
+The basic classification tree is based on partitioning the data into subgroups using simple binary splitting. Initially, all objects are considered a single group. Then, the group is repeatedly binarily split into two subgroups based on the criteria of a certain variable. In the classification setting, we classify the observations in a specific region with majority vote. We want to grow the tree as big as we can, and then prune it back using cost-complexity pruning. This is done to not overfit the data, but pruning increases the bias. The pruning parameter needs to be tuned; below is a plot of the classification accuracy by pruning parameter, where .001 yields the highest accuracy.
+
+```{r tree, out.height='3in'}
+# Set seed for reprodicibility
+set.seed(702)
+
+# Fit classification tree model
+tree.class <- train(form.class, data = trn, method = "rpart",
+                    trControl = trctrl, tuneGrid = expand.grid(cp = seq(0, .02, .001)))
+
+# Plot the accuracy as a function of the tuning parameter
+plot(Accuracy ~ cp, data = tree.class$results, xlab = "Cp")
+points(which.max(tree.class$results$Accuracy),
+       tree.class$results$Accuracy[which.max(tree.class$results$Accuracy)],
+       pch = 8, col = "#CC0000")
+```
+
+The advantage of using a basic tree is that it is easy to understand and has a good interpretability, which is not something that translates over to ensemble methods. Additionally, the classification tree is not very computationally expensive, unlike the random forest model. We used the `caret` and `rpart` packages in R to fit our trees.
 
 A visualization of the classification tree can be found below.
 
-```{r tree, fig.align="center", out.height='4in', out.width='4in'}
-#### REGRESSION ####
-# Fit basic regression tree model
-#tree.reg <- train(form.reg, data = trn, method = "rpart",
-#                  trControl = trctrl)
-
-# Obtain RMSE and results
-#tree.reg.pred <- predict(tree.reg, newdata = tst)
-#tree.reg.rmse <- sqrt(mean((tree.reg.pred - tst$quality)^2))
-
-#### CLASSIFICATION ####
-# Fit classification tree model
-tree.class <- train(form.class, data = trn, method = "rpart",
-                    trControl = trctrl)
-
+```{r, out.heigh = '3.5in'}
 # Obtain confusion matrix and results for H2
 tree.class.pred <- predict(tree.class, newdata = tst)
 tree.class.CM <- confusionMatrix(tree.class.pred, tst$class)
 tree.class.res <- c(tree.class.CM$overall[1], tree.class.CM$byClass[1:2])
 
-# Print out regression tree visualization
-#tree.reg.out <- rpart(form.reg, data = trn, cp = 0.03061684)
-#rpart.plot(tree.reg.out, main="Regression Tree")
-
 # Print out classification tree visualization
-tree.class.out <- rpart(form.class, data = trn, cp = 0.01971326)
+tree.class.out <- rpart(form.class, data = trn, cp = 0.011)
 rpart.plot(tree.class.out, main="Classification Tree")
 ```  
 
 ## Random Forest  
 The random forest model is an ensemble tree-based method, which creates multiple trees from bootstrap samples and averages the results. Many bootstrap samples are created with replacement and then a classification tree is fitted on each bootstrap sample with a random subset of the predictors. Once a prediction has been made by all of the bootstrapped trees, the final classification is based on majority vote of the bootstrap predictions. Similarly, the prediction in the regression context is an average of all of the predictions of the bootstrapped trees.
 
-The advantage for using an ensemble method over a regular classification or regression tree is that because there are many bootstrap samples being averaged together, there is less variance. This is similar to how the variance of the sample mean goes down as the sample size increases. Although it will probably increase our prediction accuracy, the random forest loses the interpretability that the basic trees have. Furthermore, the algorithm that is used to fit the random forest is very computationally expensive.  
+The following parameters need to be tuned in a random forest model:  
+  * `mtry`: the number of randomly-selected variables selected at a node split
+  * `ntree`: the number of trees to grow
 
-To train our model, we used the `randomForest` and `caret` packages in R. The maximum number of predictors for a bootstrap sample as well as the number of trees in the forest are both parameters that need tuning. Again, we will use the "best" tune, automatically given to us by the `caret` package. 
-
-```{r rf}
+```{r rf, out.height='3.5in'}
 #### REGRESSION ####
+# Set seed for reproducibility
+set.seed(702)
+
 # Fit the regression random forest model 
 rf.reg <- train(form.reg, data = trn, method = "rf",
-                trControl = trctrl, importance = TRUE)
+                trControl = trctrl, importance = TRUE,
+                tuneGrid = expand.grid(mtry = 1:6))
 
 # Obtain RMSE and results
 rf.reg.pred <- predict(rf.reg, newdata = tst)
@@ -288,17 +314,28 @@ rf.reg.rmse <- sqrt(mean((rf.reg.pred - tst$quality)^2))
 #### CLASSIFICATION ####
 # Fit the classification random forest model
 rf.class <- train(form.class, data = trn, method = "rf",
-                trControl = trctrl, importance = TRUE)
+                trControl = trctrl, importance = TRUE,
+                tuneGrid = expand.grid(mtry = 1:5))
 
 # Obtain confusion matrix and results
 rf.class.pred <- predict(rf.class, newdata = tst)
 rf.class.CM <- confusionMatrix(rf.class.pred, tst$class)
 rf.class.res <- c(rf.class.CM$overall[1], rf.class.CM$byClass[1:2])
 
-# Print out results in a list
-#list("RMSE" = rf.reg.rmse,
-#     "Class Results" = rf.class.res)
+# Plot the RMSE and accuracy as a function of mtry (ntree constant at 500)
+par(mfrow = c(1,2))
+plot(RMSE ~ mtry, data = rf.reg$results)
+points(which.min(rf.reg$results$RMSE), rf.reg$results$RMSE[which.min(rf.reg$results$RMSE)],
+       pch = 8, col = "#CC0000")
+plot(Accuracy ~ mtry, data = rf.class$results)
+points(which.max(rf.class$results$Accuracy),
+       rf.class$results$Accuracy[which.max(rf.class$results$Accuracy)],
+       pch = 8, col = "#CC0000")
 ```  
+
+Since `ntree` will plateau with enough trees, we tuned the `mtry` in both the regression and classification settings. For regression, the optimal `mtry` value is `r rf.reg$bestTune[1,1]`, while for classification it is  `r rf.class$bestTune[1,1]`. Keep in mind that the random forest is equivalent to bagging when the number of randomly selected features is equal to the total number of variables in the model. In both of the above plots, this is represented by the maximum displayed value of `mtry`.
+
+The advantage for using an ensemble method over a regular classification or regression tree is that because there are many bootstrap samples being averaged together, there is less variance. This is similar to how the variance of the sample mean goes down as the sample size increases. Although it will probably increase our prediction accuracy, the random forest loses the interpretability that the basic trees have. Furthermore, the algorithm that is used to fit the random forest is very computationally expensive.  
 
 # Results  
 
@@ -333,7 +370,7 @@ kable(df.class, caption = "Classification Model Results", format = "latex") %>%
 
 Based on the output, the best model for both classification and regression was the random forest. This was not a surprise, since the ensemble methods tend to outperform regular methods. As an average of many classification trees, ensemble methods generally improve prediction accuracy and reduce overall variance. We suspect that other ensemble methods, such as bagging or boosting, may also be able to yield higher prediction accuracies. 
 
-One of the main disadvantages to using ensemble techniques like the random forest is the fact that they tend to be very computationally intensive. The basic classification tree and multiple linear regression model took significantly less time to run than the random forest and the SVM, but they were less accurate in their predictions. If we wanted to run an ensemble method on a very large data set with a lot of features, it would be a computational nightmare.
+One of the main disadvantages to using ensemble techniques like the random forest is the fact that they tend to be very computationally intensive. The basic classification tree and multiple linear regression model took significantly less time to run than the random forest, but they were less accurate in their predictions. If we wanted to run an ensemble method on a very large data set with a lot of features, it would be a computational nightmare.
 
 # Conclusion  
 With the recent push for quantitative solutions in industries like agriculture, there has been an emphasis on using machine learning to solve a variety of problems requiring prediction and inference. In particular, the viticulture industry stands to gain a lot from such methods, since historically it has not interacted much with the world of analytics. In this study, we went through various machine learning techniques, assessing prediction accuracy in both classification and regression contexts.
