@@ -18,7 +18,6 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, cache = FALSE,
 # Load necessary libraries
 library(tidyverse) # so many things
 library(knitr) # making nice tables
-library(caret) # training models & CV
 library(leaps) # subset selection
 library(corrplot) # visualize correlation
 library(rmarkdown) # for output documents
@@ -40,9 +39,9 @@ set.seed(702)
 
 # Introduction
 
-There has been a push towards the implementation of different analytics solutions within the agriculture industry, especially in the realms of crop health and yield. These sort of analyses can help farmers reduce waste and improve profits. In particular, the viticulture industry stands to benefit from such methods, being that the production of wine is lengthy and multifaceted. Winemakers can work to optimize revenue by analyzing their input and output (crops and wines). Specifically, costs may be cut out if machine learning methods were able to predict the quality of wine based on different metrics, since wine producers would no longer have to hire expert wine tasters to determine wine quality. The question this study is most interested in is to determine if there is a way to predict the quality of a wine without having to use taste testers. The team is hypothesizing that both the classifation and regression methods can accurately describe the quality of wine.
+There has been a push towards the implementation of different analytics solutions within the agriculture industry, especially in the realms of crop health and yield. These sort of analyses can help farmers reduce waste and improve profits. In particular, the viticulture industry stands to benefit from such methods, being that the production of wine is lengthy and multifaceted. Winemakers can work to optimize revenue by analyzing their input and output (crops and wines). Specifically, costs may be cut out if machine learning methods were able to predict the quality of wine based on different metrics, since wine producers would no longer have to hire expert wine tasters to determine wine quality. 
 
-In this study, the objective is to model and predict the quality of wine using a variety of statistical learning techniques. This will be done by performing both regression and classification methods, with regression ranking the quality of the wines on a scale of zero to ten, with zero being the lowest quality and ten being the highest quality. The classification models will be classifying the wines into two categories, good and bad, with wines in the bad category having a score of zero to five, and wines in the good category having a quality score between six and ten. The assessment of the prediction accuracy will be performed by the following methods:
+In this study, the objective is to model and predict the quality of wine using a variety of statistical learning techniques. This will be done by performing both regression and classification methods, with regression ranking the quality of the wines on a scale of zero to ten, with zero being the lowest quality and ten being the highest quality. The classification models will be classifying the wines into two categories, high and low, with wines in the low category having a score of zero to five, and wines in the high category having a quality score between six and ten. The assessment of the prediction accuracy will be performed by the following methods:
 
 
 ```{r methods}
@@ -54,18 +53,21 @@ kable(data.frame("Classification" = cl, "Regression" = reg), caption = "ML Metho
   kable_styling(latex_options = "hold_position")
 ```
 
+The research question of interest for this study is whether or not machine learning methods can accurately predict the quality of a wine, independent of using taste testers. In the classification setting, we hypothesize that the machine learning methods can correctly classify wines as "high" or "low" quality with 80% accuracy. In the context of regression, we hypothesize that the regression techniques used will be able to achieve a low root mean squared error. In both settings, though, we expect the random forest to outperform the other methods.
+
 # Required Libraries
 To run the code for the project, the following libraries are required:
 
-  * `caret`: to do the heavy lifting of training and tuning the models
   * `tidyverse`: for all the data reading and wrangling
   * `knitr`: for rmarkdown table outputs
   * `kableExtra`: for making fancy tables
   * `rmarkdown`: for output documents
   * `corrplot`: for correlation structure visualization
+  * `leaps`: for best subsets selection
   * `tree`: fitting the basic classification tree
   * `randomForest`: fitting random forest models
   * `gridExtra`: for stitching plots together
+  * `jtools`: for linear model summary output
 
 # Data
 The data set used is the Wine Quality dataset from the UCI Machine Learning Repository. The data set is comprised of 1600 observations of different variants of the Portuguese "Vinho Verde" red wine. For each wine, various physical and chemical features of each wine was measured, including a measurement of quality given by an expert wine taster. The objective is to use the different features to predict the quality of the wine using different machine learning techniques.
@@ -106,7 +108,8 @@ Next, we went ahead and looked at pairwise scatterplots of the variables. This w
 # Create pairwise scatterplots
 pairs(wine[,c(2,5,7,8,9,10,11)])
 ```
-Based on the pairwise scatterplots, one can conclude that pH may be linearly correlated with density, sulphates, and alcohol. This leads us to believe that there is some relationship between the chemical properties of the wines. here also appears to be a relationship between density and alcohol. The following correlation plot gives a numeric summary of the linear relationship between the variables.
+
+Based on the pairwise scatterplots, one may conclude that pH may be linearly correlated with density, sulphates, and alcohol. This leads us to believe that there is some relationship between the chemical properties of the wines. here also appears to be a relationship between density and alcohol. The following correlation plot gives a numeric summary of the linear relationship between the variables.
 
 ```{r corrplot}
 # Create visualization of correlation structure
@@ -123,7 +126,7 @@ The only linear correlations that are notably high are between alcohol and densi
 
 ### Good Wine Qualities v. Bad Wine Qualities
 
-After a split in the data was performed to pull out the wines classified as good and the wines classified as bad, further analysis was performed on each group to see if any of the variables were significantly different between the two groups.  
+After a split in the data was performed to pull out the wines classified as high quality and the wines classified as low quality, further analysis was performed on each group to see if any of the variables were significantly different between the two groups.  
 
 ```{r goodvbad}
 good.wine <- subset(wine, quality > 5)
@@ -147,8 +150,7 @@ kable(bad.out, caption = "Summary Output for Bad Wines") %>%
   kable_styling(latex_options = "HOLD_position")
 ```
 
-The two groups were similar in most of the variables. Two notable differences are that the wines classified as "good" had a lower mean value than "bad" wines for total sulfur dioxide. Good wines had a mean of 39, which was significantly lower than the mean of the "bad" wines at 54.6. Another difference to note is the difference in the mean for alcohol. The good wines had a mean alcohol content at 10.8, while the bad wines had a lower mean alcohol content around 9.9. There were also differences in fixed acidity, with the bad wines having a lower mean. There were also several variables that don't seem to change between the two groups including pH, residual sugar, chlorides, and density. 
-
+The two groups were similar in most of the variables. Two notable differences are that the wines classified as high quality had a lower mean value than low quality wines for total sulfur dioxide. High quality wines had a mean of 39, which was significantly lower than the mean of the low quality wines at 54.6. Another difference to note is the difference in the mean for alcohol. The high quality wines had a mean alcohol content at 10.8, while the low quality wines had a lower mean alcohol content around 9.9. There were also differences in fixed acidity, with the lower quality wines having a lower mean. There were also several variables that don't seem to change between the two groups including pH, residual sugar, chlorides, and density. 
 
 ## Data Processing
 ```{r partition}
@@ -236,7 +238,7 @@ rf.class.res <- c(rf.class.train_err, rf.class.test_err)
 
 From cross validation, the model that produced the smallest error rate was the model that was built with   `r which.min(test.err)` randomly-chosen variables at each split. This model produced a test error of `r round(rf.class.test_err, 3)`, which is significantly lower than the test error for the basic classification tree (`r round(prune.tree.class.test_err, 3)`). The random forest was selected as the best method for predicting if a wine were to fall into the "high" or "low" quality desgination.
 
-# Regression Methods
+# Regression
 ## Multiple Linear Regression
 Multiple Linear Regression is the extension of simple linear regression to a set of multiple predictor variables. The goal of multiple linear regression is to model the linear relationship between a continuous response and two or more predictor variables. Like simple linear regression, coefficient estimates are found by minimizing the sum of the squared errors. The formula for a multiple linear regression model with $p$ predictor variables is as follows:  
 
@@ -251,11 +253,35 @@ $$
 & \quad \epsilon_i = \text{residuals (error term of model)} \\
 \end{aligned}
 $$
-Although it is possible to use every predictor in the MLR model, we instead use variable selection to reduce the number of predictors to six (`volatile.acidity`, `chlorides`, `pH`, `total.sulfur.dioxide`, `sulphates`, and `alcohol`) while maintaining predictive accuracy (see Variable Selection section for details). Applying the MLR with the reduced model, we get the following:
+Although it is possible to use every predictor in the MLR model, we used best subsets selection to select the variables that best explain the variation in the response. Using the `leaps` library and the `regsubsets()` function in R, we are able to compare all of the possible models from the given set of predictors. Through best subset selection, we can get the set of predictors for a model with any given amount of predictors. We looked at three different model criteria to compare models of different amounts of predictor variables: Mallow's Cp, BIC, and $R^2_{\text{adj}}$.
+
+```{r reg.select}
+# Create model and get summary output
+lm.sub <- regsubsets(quality ~ ., data = wine[,-13], nvmax = 11)
+smre <- lm.sub %>% summary()
+
+# Plot the Cp, BIC, R^2, RSS results in one plot
+par(mfrow = c(2,2))
+plot(smre$cp, xlab = "# of Preds", ylab = "Cp")
+points(which.min(smre$cp), smre$cp[which.min(smre$cp)], pch = 8, col = "#CC0000")
+plot(smre$bic, xlab = "# of Preds", ylab = "BIC")
+points(which.min(smre$bic), smre$bic[which.min(smre$bic)], pch = 8, col = "#CC0000")
+plot(smre$adjr2, xlab = "# of Preds", ylab = "Adjusted R^2")
+points(which.max(smre$adjr2), smre$adjr2[which.max(smre$adjr2)], pch = 8, col = "#CC0000")
+plot(smre$rss, xlab = "# of Preds", ylab = "Training RSS")
+points(which.min(smre$rss), smre$rss[which.min(smre$rss)], pch = 8, col = "#CC0000")
+
+# Best subset selection
+best.betas <- coef(lm.sub, id = 6) %>% round(2)
+```
+
+Although each of the three model criteria suggested a different number of predictor variables, they were all within the same region (between 6 and 8 predictors). Since they were so close, we adhered to the Occam's Razor and went with the simplest, six-variable model. This was the model favored by BIC, which gives the greatest penalty for complexity in models. The six variables used in the regression context are then `volatile.acidity`, `chlorides`, `total.sulfur.dioxide`, `pH`, `sulphates`, and `alcohol`. All of the variables from the classification selection appear here with the exception of density. In the regression context, `pH` was the variable that proved to be a rather unintuitive inclusion, since it is similar to density in the sense that it is not easily detected by the five human senses. The inclusion of these two variables in the model portray the importance of the chemical properties of a bottle of wine when it comes to quality.
 
 ```{r mlr}
 #### REGRESSION ####
-lm.reg <- lm(quality ~ volatile.acidity + chlorides + pH + total.sulfur.dioxide + sulphates + alcohol, data = trn)
+lm.reg <- lm(quality ~ volatile.acidity + chlorides + 
+               pH + total.sulfur.dioxide + sulphates +
+               alcohol, data = trn)
 summ(lm.reg, digits = 3)
 
 # Obtain RMSE and results for linear model
@@ -309,12 +335,12 @@ scale.res <- scale(lm.reg$residuals)
 scale.res.2std <- mean((scale.res <= 1.96) * (scale.res >= -1.96))
 ```
 
-Residuals indicate that our MLR assumptions are mostly satisfied. The residuals vs. fitted values plot (top left) has unusual stratified lines, but this is caused by the actual responses being integer values of 4, 5, 6, 7, etc. rather than continuous values. The plot does not show heteroscedasticity, and residuals are spread evenly around 0 over the entire range of fitted values. When residuals are standardized, as in the top right plot, we expect about 95% to be inside the [-1.96, 1.96] interval; the actual proportion is `r round(scale.res.2std, 3)`. The Q-Q plot at bottom left compares the normality of residuals against a theoretical distribution. Except for a slight downward bias of the lowest 5% of residuals at 2 standard deviations below 0, the data fits a normal distribution almost perfectly. On the bottom right plot, high leverage points (those with leverage $\ge$ 0.03) are not dramatically biased, being spread both above and below the 0 residual. Cook's Distance top out at about 0.05, well below the generally accepted threshold of 1 needed to quality as highly influential. These plots taken together suggest that the data generally fulfills the requirements for modeling using MLR.
+Residuals indicate that our MLR assumptions are mostly satisfied. The residuals vs. fitted values plot (top left) has unusual stratified lines, but this is caused by the actual responses being integer values of 4, 5, 6, 7, etc. rather than continuous values. The plot does not show heteroscedasticity, and residuals are spread evenly around 0 over the entire range of fitted values. When residuals are standardized, as in the top right plot, we expect about 95% to be inside the [-1.96, 1.96] interval; the actual proportion is `r round(scale.res.2std, 3)`. The QQ-plot at bottom left compares the normality of residuals against a theoretical distribution. Except for a slight downward bias of the lowest 5% of residuals at 2 standard deviations below 0, the data fits a normal distribution almost perfectly. On the bottom right plot, high leverage points (those with leverage $\ge$ 0.03) are not dramatically biased, being spread both above and below the 0 residual. Cook's Distance tops out at about 0.05, well below the generally accepted threshold of 1 that is considered highly influential. These plots taken together suggest that the data generally fulfills the requirements for modeling using MLR.
 
-The biggest benefit to using a multiple linear regression model is its interpretability and ease of use. The coefficients can be computed efficiently and they are have clear and easy interpretations. It is also possible to make inference on any of the variables or linear combination of variables. The most signficiant drawback of using the multiple linear regression model is that it is subject to distributional assumptions, meaning that if the assumptions are violated, our estimates and inference will be unstable at best and invalid at worst. 
+The biggest benefit to using a multiple linear regression model is its interpretability and ease of use. The coefficients can be computed efficiently and they are have clear and easy interpretations. It is also possible to make inference on any of the variables or linear combination of variables. The most signficiant drawback of using the multiple linear regression model is that it is subject to distributional assumptions, meaning that if the assumptions are violated, our estimates and inference will be unstable at best and invalid at worst. Based on the residual plots, though, we are confident that our model does not violate any of the model assumptions.
 
 ## Random Forest for Regression
-As mentioned earlier in the classification section, Random Forest is an ensemble tree-based method, which creates multiple trees from bootstrap samples and averages the results from all the fitted trees. This model will be built exactly in the same way as the classification model, except the tree will not be predicting if the wine is a part of the good or bad class, but rather predicts the quality score associated with each wine. As before the model will first be built using cross validation to determine the number of variables that should be used in order to produce the smallest test MSE. Similar to the random forest classification tree, the cross validation selects the tree with 2 variables.
+As mentioned earlier in the classification section, Random Forest is an ensemble tree-based method, which creates multiple trees from bootstrap samples and averages the results from all the fitted trees. This model will be built exactly in the same way as the classification model, except the tree will not be predicting if the wine is a part of the "high" or "low" class, but rather predicts the quality score associated with each wine. The predicted value of the quality score will be an average of all of the generated regression trees. As before, the model will first be built using cross validation to determine the number of variables that should be used in order to produce the smallest test RMSE.
 
 ```{r rf.reg}
 #----- regression -----
@@ -337,8 +363,8 @@ rf.reg.train_err <- sqrt(mean((trn$quality - predict(rf.reg))^2))
 rf.reg.test_err <- sqrt(mean((tst$quality - rf.reg.pred)^2))
 rf.reg.res <- c(rf.reg.train_err, rf.reg.test_err)
 ```  
-The test MSE for the Regression Random Forest using 2 variables is 0.55. COMPARE THIS TO MLR WHEN WE GET YUN'S CODE.
 
+Based on cross validation, we chose our random forest model for regression to have two randomly-selected variables considered at each split. 
 # Results  
 
 ```{r create.df}
@@ -366,14 +392,16 @@ kable(df.class, caption = "Classification Model Results", format = "latex") %>%
   kable_styling(latex_options = "HOLD_position")
 ```
 
-Based on the output, the best model for both classification and regression was the random forest. This was not a surprise, since the ensemble methods tend to outperform regular methods. As an average of many classification trees, ensemble methods generally improve prediction accuracy and reduce overall variance. We suspect that other ensemble methods, such as bagging or boosting, may also be able to yield higher prediction accuracy.   
+Based on the output, the best model for both classification and regression was the random forest. This supports our hypothesis that the random forest would outperform the other methods. This was not necessarily a surprise, since the ensemble methods tend to outperform regular methods. As an average of many classification trees, ensemble methods generally improve prediction accuracy and reduce overall variance. We suspect that other ensemble methods, such as bagging or boosting, may also be able to yield higher prediction accuracy.   
+
+In the regression setting, the values of root mean squared error (RMSE) for both models were relatively low. The RMSE for the random forest was `r df.reg[2,2]` and the RMSE for the multiple linear regression model was `r df.reg[1,2]`, further supporting our hypothesis that the random forest would outperfrom the other models.
 
 One of the main disadvantages to using ensemble techniques like the random forest is the fact that they tend to be very computationally intensive. The basic classification tree and multiple linear regression model took significantly less time to run than the random forest, but they were less accurate in their predictions. If we wanted to run an ensemble method on a very large data set with a lot of features, it would be a computational nightmare.
 
 # Conclusion  
 With the recent push for quantitative solutions in industries like agriculture, there has been an emphasis on using machine learning to solve a variety of problems requiring prediction and inference. In particular, the viticulture industry stands to gain a lot from such methods, since historically it has not interacted much with the world of analytics. In this study, we went through various machine learning techniques, assessing prediction accuracy in both classification and regression contexts.
 
-Based on the results of our study, we were able to predict the high or low quality of a given wine with about 70-80% accuracy. Although this is a *good* result considering the non-information rate of 53%, it is by no means excellent. These results indicate that machine learning algorithms could be a good technique when trying to predict wine quality, but that there is room for improvement. With a more formal, industry expert-guided variable selection process, we believe that higher prediction accuracies can be achieved. Machine learning models could potentially be combined with other techniques to add value to winemakers.
+Based on the results of our study, we were able to predict the high or low quality of a given wine with about 70-80% accuracy. Despite not being able to achieve 80% prediction accuracy with the basic classification tree, we *were* able to with the random forest. Although this is a *good* result considering the non-information rate of 53%, it is by no means excellent. These results indicate that machine learning algorithms could be a good technique when trying to predict wine quality, but that there is room for improvement. With a more formal, industry-expert-guided variable selection process, we believe that higher prediction accuracies can be achieved. Machine learning models could potentially be combined with other techniques to add value to winemakers.
 
 ## Limitations  
 The multiple linear regression model is subject to certain distributional and model assumptions, which were not explicitly tested or checked. Since the objective of this project was to predict rather than make inference, we didn't explicitly check the model assumptions.
@@ -387,84 +415,3 @@ Since this study solely looks at the prediction accuracy of machine learning tec
 
 The characteristics of any given wine are often derived from different geological and/or climatological
 conditions. For example, a wine that comes from a region close enough to the water to get a sea breeze may have a hint of saltiness in its aroma or taste. Similarly, a grape coming from a relatively young grove might give the wine different features than if the grove were hundreds of years old. It would be interesting to see how different weather conditions, terroirs, plant ages, and slopes affect the outcome of the wine in terms of quality. 
-
-
-
-# NOT NEEDED ???
-
-I'm not sure we need these next 2 sections because most of the methods we are using do model selection. I don't have Yun's code, but I'm assuming he does some sort of variable selection, so this part seems extraneous. 
-
-## Cross Validation
-Again, our focus is on the classification accuracy of machine learning methods. In particular, we will be using traditional cross-validation methods to assess the accuracy, sensitivity, and specificity of each of the models. We split the data into a training and test data set in order to later evaluate the model's prediction accuracy or root mean squared error (RMSE). For this project we used a 80/20 split, training the data on the 80% and testing the trained models on the withheld 20%. We will then repeat this process over 5 folds of the data, averaging the results.
-
-```{r CV, eval = F}
-# Specify the cross-validation method (5-fold CV)
-trctrl <- trainControl(method = "cv", number = 5)
-```
-
-## Variable Selection
-Since we have two different tasks that we are trying to complete (classification and regression), we went about selecting the variables for each task differently. For the classification task, we ran an initial random forest model on the entire dataset with selected predictors. We then looked at the variable importance of the predictors to decide which variables we would use in our final models. Within the context of machine learning, variable importance refers to how much a given model "uses" that variable to make accurate predictions. In other words, the more a model relies on a variable to make predictions, the more important it is for the model. 
-
-```{r class.select, out.height='4in', eval = F}
-# Write preliminary model  
-model.class.pre <- class ~ .
-
-# Fit preliminary random forest on entire data set
-rf.class.pre <- randomForest(model.class.pre, data = wine[,-12], 
-                             ntree = 500, mtry = 3, importance = TRUE)
-
-# Create data frame of variable importance
-df.class.pre <- rf.class.pre$importance %>% as.data.frame()
-X <- rownames(df.class.pre)
-
-# Sort the data frame and prep for plot
-VIrf.pre.class.sort <- df.class.pre[order(df.class.pre[,"MeanDecreaseAccuracy"]), , drop = FALSE]
-VIrf.pre.class.sort$X <- rownames(VIrf.pre.class.sort)
-VIrf.pre.class.sort$X <- factor(VIrf.pre.class.sort$X, levels = VIrf.pre.class.sort$X)
-
-# Plot variable importance
-vimp.class <- ggplot(VIrf.pre.class.sort, aes(x = X, y = MeanDecreaseAccuracy)) +
-                geom_bar(stat = 'identity', position = 'dodge', fill="lightblue") +
-                theme(axis.text.x = element_text(angle = 30, hjust = 1)) +
-                ylab("Mean Decrease in Accuracy") + xlab("Predictor") +
-                ggtitle("Variable Importance")
-vimp.class
-```  
-
-We decided to choose the five variables with the most variable importance, leaving us with `alcohol`, `sulphates`, `volatile.acidity`, `density`, and `total.sulfur.dioxide`. The fact that density proved to be an important variable for classification was relatively surprising. One would think that the wine quality would be determined based on its attributes that are detectable by the human senses. For this same reason, alcohol, acidity, and sulphates made sense in terms of variable importance. Sulphates are essential for the preservation of the wine, an overly- or underly-acidic wine may be considered poor, and the alcohol content has a connection to the fermentation process, where the must (aka the grape juice before it undergoes fermentation) actually becomes wine.
-
-When looking at the problem in terms of a regression context, we used best subsets selection for feature selection. Using the `leaps` library and the `regsubsets()` function in R, we are able to compare all of the possible models from the given set of predictors. Through best subset selection, we can get the set of predictors for a model with any given amount of predictors. We looked at three different model criteria to compare models of different amounts of predictor variables: Mallow's Cp, BIC, and $R^2_{\text{adj}}$.
-
-```{r reg.select, out.height='3.5in', eval = T}
-# Create model and get summary output
-lm.sub <- regsubsets(quality ~ ., data = wine[,-13], nvmax = 11)
-smre <- lm.sub %>% summary()
-
-# Plot the Cp, BIC, R^2, RSS results in one plot
-par(mfrow = c(2,2))
-plot(smre$cp, xlab = "# of Preds", ylab = "Cp")
-points(which.min(smre$cp), smre$cp[which.min(smre$cp)], pch = 8, col = "#CC0000")
-plot(smre$bic, xlab = "# of Preds", ylab = "BIC")
-points(which.min(smre$bic), smre$bic[which.min(smre$bic)], pch = 8, col = "#CC0000")
-plot(smre$adjr2, xlab = "# of Preds", ylab = "Adjusted R^2")
-points(which.max(smre$adjr2), smre$adjr2[which.max(smre$adjr2)], pch = 8, col = "#CC0000")
-plot(smre$rss, xlab = "# of Preds", ylab = "Training RSS")
-points(which.min(smre$rss), smre$rss[which.min(smre$rss)], pch = 8, col = "#CC0000")
-
-# Best subset selection
-best.betas <- coef(lm.sub, id = 6) %>% round(2)
-```
-
-Although each of the three model criteria suggested a different number of predictor variables, they were all within the same region (between 6 and 8 predictors). Since they were so close, we adhered to the Occam's Razor and went with the simplest, six-variable model. This was the model favored by BIC, which gives the greatest penalty for complexity in models. The six variables used in the regression context are then `volatile.acidity`, `chlorides`, `total.sulfur.dioxide`, `pH`, `sulphates`, and `alcohol`. All of the variables from the classification selection appear here with the exception of density. In the regression context, `pH` was the variable that proved to be a rather unintuitive inclusion, since it is similar to density in the sense that it is not easily detected by the five human senses. The inclusion of these two variables in the model portray the importance of the chemical properties of a bottle of wine when it comes to quality.
-
-```{r form, eval = F}
-# Write formula for regression models
-form.reg <- quality ~ volatile.acidity + chlorides + pH + 
-            total.sulfur.dioxide + sulphates + alcohol
-
-# Write formula for classification models
-form.class <- class ~ alcohol + sulphates + density +
-              volatile.acidity + total.sulfur.dioxide
-```
-
-
