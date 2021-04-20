@@ -12,7 +12,8 @@ fontsize: 12pt
 ```{r setup, include=FALSE}
 # Set default chunk options
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, 
-                      warning = FALSE, fig.align = "center")
+                      warning = FALSE, fig.align = "center",
+                      out.height = '3.5in')
 
 # Load necessary libraries
 library(tidyverse) # so many things
@@ -21,12 +22,10 @@ library(caret) # training models & CV
 library(leaps) # subset selection
 library(corrplot) # visualize correlation
 library(rmarkdown) # for output documents
-library(rpart) # fitting classification tree
-library(rpart.plot) # visualization of classification tree
 library(randomForest) # fitting random forest model
 library(kableExtra) # making bolded headers for tables
 library(gridExtra) # stitching graphs together
-library(tree)
+library(tree) # fitting the classification tree
 
 # Read in data set
 wine <- read.csv2(file = "winequality-red.csv", header = TRUE, dec = ".",
@@ -60,18 +59,19 @@ To run the code for the project, the following libraries are required:
   * `caret`: to do the heavy lifting of training and tuning the models
   * `tidyverse`: for all the data reading and wrangling
   * `knitr`: for rmarkdown table outputs
+  * `kableExtra`: for making fancy tables
   * `rmarkdown`: for output documents
   * `corrplot`: for correlation structure visualization
-  * `leaps`: for subset selection
-  * `rpart`: fitting the basic classification tree
-  * `rpart.plot`: visualization of the classification tree
+  * `tree`: fitting the basic classification tree
   * `randomForest`: fitting random forest models
+  * `gridExtra`: for stitching plots together
 
 # Data
 The data set used is the Wine Quality dataset from the UCI Machine Learning Repository. The data set is comprised of 1600 observations of different variants of the Portuguese "Vinho Verde" red wine. For each wine, various physical and chemical features of each wine was measured, including a measurement of quality given by an expert wine taster. The objective is to use the different features to predict the quality of the wine using different machine learning techniques.
 
 ## Variable Descriptions  
 Each entry in the dataset represents the different metrics of the following attributes of a single type of wine.
+
   * **fixed acidity**: the quantity of fixed acids found in the wines. The predominant fixed acids found in wines are tartaric, malic, citric, and succinic, all of which come from the grapes except for the succinic acid, which comes from the yeast in fermentation. 
   * **volatile acidity**: the steam distillable acids present in wine, primarily acetic acid but also lactic, formic, butyric, and propionic acids. These acids generally come from the fermentation process.
   * **citric acid**: added to the wine as a natural preservative or for acidity and tartness.
@@ -86,15 +86,28 @@ Each entry in the dataset represents the different metrics of the following attr
   * **quality**: score of quality of the wine given by expert tasters (score between 0 and 10).
 
 ## Data Exploration
-The first thing that was done to the data upon reading it was to use the numeric variables and create pairwise scatterplots. This way, one can obtain a greater understanding of how the variables relate to one another, as well as if there is any correlation structure and what it looks like. If the variables are related, there may be problems moving forward, so it is important to know these relationships before the analysis is performed.
+The first thing that was done to the data upon reading it was to look at histograms of all of the variables. In doing so, we cann get a feel for the distributions of the individual variables.
 
-```{r pairs, out.width='4in', out.height='3.5in'}
+```{r}
+# Create histograms for all 12 variables
+par(mfrow = c(3,4))
+for (i in 1:ncol(wine)){
+  hist(wine[,i], xlab = names(wine)[i], 
+       main = names(wine)[i])
+}
+```
+
+Most wines are moderate wines, with less excellent amd poor wines. The density and pH of the wine seem to be normally distributed, while the sulfur, acid, and sulphate content seem skewed to the right. The density varies very little; looking at the scale on the distribution, we can see that it is approximately normally distributed around .997 with a standard deviation of about .002. The distribution of alcohol content came as no surprise; an average bottle of wine will range from about 10-12% alcohol by volume, with some exceptions. Beyond 16%, the wine is then considered fortified wine, and red wines don't usually have alcohol content below about 8%.
+
+Next, we went ahead and looked at pairwise scatterplots of the variables. This way, one can obtain a greater understanding of how the variables relate to one another, as well as if there is any correlation structure and what it looks like. If the variables are related, there may be problems moving forward, so it is important to know these relationships before the analysis is performed.
+
+```{r pairs}
 # Create pairwise scatterplots
 pairs(wine[,c(2,5,7,8,9,10,11)])
 ```
 Based on the pairwise scatterplots, one can conclude that pH may be linearly correlated with density, sulphates, and alcohol. This leads us to believe that there is some relationship between the chemical properties of the wines. here also appears to be a relationship between density and alcohol. The following correlation plot gives a numeric summary of the linear relationship between the variables.
 
-```{r corrplot, echo = FALSE, out.height='3.5in'}
+```{r corrplot}
 # Create visualization of correlation structure
 p.mat <- cor.mtest(wine[,c(2,5,7,8,9,10,11)])$p
 corrplot(cor(wine[,c(2,5,7,8,9,10,11)]),
@@ -109,14 +122,30 @@ The only linear correlations that are notably high are between alcohol and densi
 
 ### Good Wine Qualities v. Bad Wine Qualities
 
-After a split in the data was performed to pull out the wines classified as good and the wines classified as bad. Further analysis was performed on each group to see if any of the variables were significantly different between the two groups.  
+After a split in the data was performed to pull out the wines classified as good and the wines classified as bad, further analysis was performed on each group to see if any of the variables were significantly different between the two groups.  
 
-```{r good v bad}
+```{r goodvbad}
 good.wine <- subset(wine, quality > 5)
 bad.wine <- subset(wine, quality <= 5)
 # summary(good.wine)
 # summary(bad.wine)
+
+# Express summary output in table form
+good.out <- array(rep(0, 12*6), c(12,6))
+bad.out <- array(rep(0, 12*6), c(12,6))
+for(i in 1:11){
+  good.out[i,] <- summary(good.wine[,i]) %>% as.vector()
+  bad.out[i,] <- summary(bad.wine[,i]) %>% as.vector()
+}
+rownames(good.out) <- rownames(bad.out) <- names(good.wine)
+colnames(good.out) <- colnames(bad.out) <- c("Min.", "Q1", "Median", "Mean", "Q3", "Max.")
+
+kable(good.out, caption = "Summary Output for Good Wines") %>%
+  kable_styling(latex_options = "HOLD_position")
+kable(bad.out, caption = "Summary Output for Bad Wines") %>%
+  kable_styling(latex_options = "HOLD_position")
 ```
+
 The two groups were similar in most of the variables. Two notable differences are that the wines classified as "good" had a lower mean value than "bad" wines for total sulfur dioxide. Good wines had a mean of 39, which was significantly lower than the mean of the "bad" wines at 54.6. Another difference to note is the difference in the mean for alcohol. The good wines had a mean alcohol content at 10.8, while the bad wines had a lower mean alcohol content around 9.9. There were also differences in fixed acidity, with the bad wines having a lower mean. There were also several variables that don't seem to change between the two groups including pH, residual sugar, chlorides, and density. 
 
 
@@ -128,7 +157,7 @@ wine$class <- ifelse(wine$quality <= 5, "low", "high") %>% as.factor()
 # Create Test and Training Sets
 ind <- sample(length(wine$class), 0.8*length(wine$class))
 
-# Create train/test data for H1
+# Create train/test data
 trn <- wine[ind,]
 tst <- wine[-ind,]
 ```
@@ -137,18 +166,15 @@ Fortunately, the dataset was very tidy; there were no missing values. The data w
 
 # Classification Models
 ## Classification Tree
+The basic classification tree is based on partitioning the data into subgroups using simple binary splitting. Initially, all objects are considered a single group. Then, the group is repeatedly split into two subgroups based on the criteria of a certain variable. In the classification setting, an observation is classified in a specific region with majority vote. Trees are grown as big as possible and then pruned back using cost-complexity pruning. This is done to ensure the data is not being overfit. The tradeoff here is that pruning increases the bias. 
 
-THIS SECTION NEEDS TO BE EDITED
-
-The basic classification tree is based on partitioning the data into subgroups using simple binary splitting. Initially, all objects are considered a single group. Then, the group is repeatedly split into two subgroups based on the criteria of a certain variable. In the classification setting, an observation is classified in a specific region with majority vote. Trees are grown as big as possible and then pruned using cost-complexity pruning. This is done to ensure the data is not being overfit. The tradeoff here is that pruning increases the bias. The advantage of using a basic tree is that it is easy to understand and has a good interpretability, which is not something that translates over to ensemble methods. Additionally, the classification tree is not very computationally expensive, unlike the random forest model. 
-
-```{r tree, out.height='3in'}
+```{r tree}
 # Set seed for reprodicibility
 set.seed(702)
 
 # 1. full size decision tree
 tree.class <- tree(class ~ . - quality, trn)
-plot(tree.class); text(tree.class, pretty = 0)
+# plot(tree.class); text(tree.class, pretty = 0)
 tree.class.pred <- predict(tree.class, tst, type = 'class')
 tree.class.train_err <- mean(trn$class != predict(tree.class, type = 'class'))
 tree.class.test_err <- mean(tst$class != tree.class.pred)
@@ -156,30 +182,30 @@ tree.class.test_err <- mean(tst$class != tree.class.pred)
 # tree.class.test_err
 ```
 
-The resulting classification tree creates splits on 4 variables: Alcohol, Total Sulfur Dioxide, Sulphates, and Volatile Acidity. The tree has a test error rate of `r round(tree.class.test_err, 3)`. This test rate is fairly low, but as mentioned before, if one conducts pruning on the tree, the error rate can decrease and a more accurate model is created. 
+Pruning is performed on the tree using cross validation. A tree is built many times with a different number of splits and the tree that produces the smallest error rate is selected. Cross validation on this model shows that 8 is the optimal number of splits to use. The resulting pruned model will now have 8 terminal nodes and uses four variables: Alcohol, Total Sulfur Dioxide, Sulphates, and Volatile Acidity.
 
-Pruning is performed on the tree using cross validation, the tree is built many times with a different number of splits and the tree that produces the smallest error rate is selected. Cross validation on this model shows that the best model is the model built with 8 splits. The resulting pruned model will now have 8 terminal nodes and still uses the four variables in the un-pruned tree.    
-
-```{r pruned tree}
+```{r prunedtree, out.height = '4in'}
 # 2. pruned decision tree 
+par(mfrow = c(1,2))
 cv.tree.class <- cv.tree(tree.class, FUN = prune.misclass)
 plot(cv.tree.class)
 prune.tree.class <- prune.misclass(tree.class, best = 8)
-plot(prune.tree.class); text(prune.tree.class, pretty = 0)
+plot(prune.tree.class); text(prune.tree.class, pretty = 0, cex = .6)
 prune.tree.class.pred <- predict(prune.tree.class, tst, type = 'class')
 prune.tree.class.train_err <- mean(trn$class != predict(prune.tree.class, type = 'class'))
 prune.tree.class.test_err <- mean(tst$class != prune.tree.class.pred)
+tree.res <- c(prune.tree.class.train_err, prune.tree.class.test_err)
 # prune.tree.class.test_err
 ```
 
-The pruned tree produces a test error rate to the original tree with a misclassification error of `r prune.tree.class.test_err`.Using a Random Forest tree can often improve upon the error rate of a simple classification tree. While the test MSE was small in the classification tree, the team believed the error rate could be decreased using a more complex tree based method.  
+The pruned tree produces a test error rate to the original tree with a misclassification error of `r prune.tree.class.test_err`. The advantage of using a basic tree is that it is easy to understand and has a good interpretability, which is not something that translates over to ensemble methods. Additionally, the classification tree is not very computationally expensive, unlike ensemble classification methods. That being said, using ensemble methods like the random forest can often improve the error rate of a simple classification tree, since it is an average of many classification trees. While the test MSE was small in the classification tree, we decided to investigate the performance of a random forest, hoping to improve the accuracy of our predictions.
 
-## Random Forest Classification
+## Random Forest for Classification
 The random forest model is an ensemble tree-based method, which creates multiple trees from bootstrap samples and averages the results from all the fitted trees. Many bootstrap samples are created with replacement and then a classification tree is fitted on each bootstrap sample with a random subset of the predictors. Once a prediction has been made by the bootstrapped trees, the final classification is based on majority vote of the bootstrap predictions. Similarly, the prediction in the regression context is an average of the predictions of the bootstrapped trees.  
 
 The advantage for using an ensemble method over a regular classification or regression tree is that because there are many bootstrap samples being averaged together, there is less variance. This is similar to how the variance of the sample mean goes down as the sample size increases. Although it will probably increase our prediction accuracy, the random forest loses the interpretability that the basic trees have. Furthermore, the algorithm that is used to fit the random forest is very computationally expensive.  
 
-The first thing that should be done in building a boosted tree is cross validation. Here the model is built many times with the number of predictors included from one to all predictors. The test MSE is evaluated for each and the smallest value is selected. A plot of these is included below, the tree that produced the smallest error rate was the tree built with two variables, so that was the tree selected through cross validation.  
+The random forest model requires tuning of the number of randomly selected features at each split using cross validation. Here the model is built many times with the number of predictors included from one to all predictors. The test MSE is evaluated for each and the smallest value is selected. A plot of mtry as a function of the classification error is included below.
 
 ```{r rf classification CV}
 #----- classification -----
@@ -193,20 +219,21 @@ for (mtry in 1:11){
 
 # Plot cross validation results
 matplot(1:mtry, test.err, pch = 1, type = 'b',
-        xlab = "mtry", ylab = 'Mean Square Error')
+        xlab = "mtry", ylab = 'Misclassification Error')
 points(which.min(test.err), test.err[which.min(test.err)], pch = 8, col = "#CC0000")
 ```
 
-```{r rf class models}
+```{r rfclassmodels}
 rf.class <- randomForest(class ~ . - quality, trn, mtry = 2)
 rf.class.pred <- predict(rf.class,tst)
 rf.class.train_err <- mean(trn$class != predict(rf.class))
 rf.class.test_err <- mean(tst$class != rf.class.pred)
+rf.class.res <- c(rf.class.train_err, rf.class.test_err)
 # rf.class.train_err
 # rf.class.test_err
 ```
 
-Once the Random Forest tree with two variables was built, the final test MSE was calculated. This model produced a test MSE of `r round(rf.class.test_err, 3)`, which is significantly lower than the test MSE for the basic classification tree (`r round(prune.tree.class.test_err`)). The random forest was selected as the best method for predicting if a wine were to fall into the "high" or "low" class when it comes to wine quality.
+From cross validation, the model that produced the smallest error rate was the model that was built with   `r which.min(test.err)` randomly-chosen variables at each split. This model produced a test error of `r round(rf.class.test_err, 3)`, which is significantly lower than the test error for the basic classification tree (`r round(prune.tree.class.test_err, 3)`). The random forest was selected as the best method for predicting if a wine were to fall into the "high" or "low" quality desgination.
 
 # Regression Methods
 ## Multiple Linear Regression
@@ -216,10 +243,16 @@ NEED CODE FROM YUN
 lm.reg <- lm(quality ~ . - class, data = trn)
 
 # Obtain RMSE and results for linear model
+lm.reg.trn.pred <- predict(lm.reg, newdata = trn)
+lm.reg.trn.rmse <- sqrt(mean((lm.reg.trn.pred - tst$quality)^2))
+
 lm.reg.pred <- predict(lm.reg, newdata = tst)
 lm.reg.rmse <- sqrt(mean((lm.reg.pred - tst$quality)^2))
+lm.res <- c(lm.reg.trn.rmse, lm.reg.rmse)
 ```
+
 Multiple Linear Regression is the extension of simple linear regression to a set of multiple predictor variables. The goal of multiple linear regression is to model the linear relationship between a continuous response and two or more predictor variables. Like simple linear regression, coefficient estimates are found by minimizing the sum of the squared errors. The formula for a multiple linear regression model with $p$ predictor variables is as follows:  
+
 $$
 \begin{aligned}
 &Y_i = \beta_0 + \beta_1X_{i1} + \beta_2X_{i2} + ... + \beta_pX_{ip} + \epsilon_i, \\
@@ -240,7 +273,7 @@ The multiple linear regression model is subject to the following assumptions abo
   * $\epsilon_i \sim N(0, \sigma^2)$
 
 To assess these assumptions, we looked at various diagnostics plots:
-```{r lm.diag, out.height = '3.5in'}
+```{r lm.diag}
 # Look at residual plot for nonlinearity
 regres <- ggplot(data = data.frame(lm.reg$residuals, lm.reg$fitted.values), 
                  aes(x = lm.reg$residuals, y = lm.reg$fitted)) + 
@@ -276,7 +309,7 @@ The biggest benefit to using a multiple linear regression model is its interpret
 ## Random Forest for Regression
 As mentioned earlier in the classification section, Random Forest is an ensemble tree-based method, which creates multiple trees from bootstrap samples and averages the results from all the fitted trees. This model will be built exactly in the same way as the classification model, except the tree will not be predicting if the wine is a part of the good or bad class, but rather predicts the quality score associated with each wine. As before the model will first be built using cross validation to determine the number of variables that should be used in order to produce the smallest test MSE. Similar to the random forest classification tree, the cross validation selects the tree with 2 variables.
 
-```{r rf regression}
+```{r rf.reg}
 #----- regression -----
 # loop thru all the different values of mtry
 test.err = double(11)
@@ -287,7 +320,7 @@ for (mtry in 1:11){
 }
 
 # Plot cross validation results
-matplot(1:mtry, test.err, pch = 1, type = 'b', ylab = 'Mean Square Error', xlab = "mtry")
+matplot(1:mtry, test.err, pch = 1, type = 'b', ylab = 'Root MSE', xlab = "mtry")
 points(which.min(test.err), test.err[which.min(test.err)], pch = 8, col = "#CC0000")
 
 # fit the random forest with the best results
@@ -295,8 +328,7 @@ rf.reg <- randomForest(quality ~ . - class, trn, mtry = 2)
 rf.reg.pred <- predict(rf.reg, tst)
 rf.reg.train_err <- sqrt(mean((trn$quality - predict(rf.reg))^2))
 rf.reg.test_err <- sqrt(mean((tst$quality - rf.reg.pred)^2))
-#rf.reg.train_err
-#rf.reg.test_err
+rf.reg.res <- c(rf.reg.train_err, rf.reg.test_err)
 ```  
 The test MSE for the Regression Random Forest using 2 variables is 0.55. COMPARE THIS TO MLR WHEN WE GET YUN'S CODE.
 
@@ -304,15 +336,13 @@ The test MSE for the Regression Random Forest using 2 variables is 0.55. COMPARE
 
 ```{r create.df}
 # Create data frame output for regression models
-df.reg <- rbind.data.frame(lm.reg.rmse, rf.reg.test_err) %>% round(4)
-df.reg$method <- reg
-colnames(df.reg) <- c(LETTERS[1:2])
-df.reg <- df.reg %>% select("B", "A")
-colnames(df.reg) <- c("Regression Method", "Root MSE")
+df.reg <- rbind.data.frame(lm.res, rf.reg.res) %>% round(4)
+rownames(df.reg) <- c("Multiple Linear Regression", "Random Forest")
+colnames(df.reg) <- c("Training RMSE", "Test RMSE")
 
 # Create data frame output for classification models
-df.class <- rbind.data.frame(prune.tree.class.test_err, rf.class.test_err) %>% round(4)
-colnames(df.class) <- c("Misclassification Rate")
+df.class <- rbind.data.frame(tree.res, rf.class.res) %>% round(4)
+colnames(df.class) <- c("Training Error", "Test Error")
 rownames(df.class) <- c("Classification Tree", "Random Forest")
 ```
 
