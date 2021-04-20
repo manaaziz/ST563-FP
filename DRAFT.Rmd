@@ -114,8 +114,8 @@ After a split in the data was performed to pull out the wines classified as good
 ```{r good v bad}
 good.wine <- subset(wine, quality > 5)
 bad.wine <- subset(wine, quality <= 5)
-summary(good.wine)
-summary(bad.wine)
+# summary(good.wine)
+# summary(bad.wine)
 ```
 The two groups were similar in most of the variables. Two notable differences are that the wines classified as "good" had a lower mean value than "bad" wines for total sulfur dioxide. Good wines had a mean of 39, which was significantly lower than the mean of the "bad" wines at 54.6. Another difference to note is the difference in the mean for alcohol. The good wines had a mean alcohol content at 10.8, while the bad wines had a lower mean alcohol content around 9.9. There were also differences in fixed acidity, with the bad wines having a lower mean. There were also several variables that don't seem to change between the two groups including pH, residual sugar, chlorides, and density. 
 
@@ -147,31 +147,32 @@ The basic classification tree is based on partitioning the data into subgroups u
 set.seed(702)
 
 # 1. full size decision tree
-tree.class<-tree(class~.-quality,trn)
-plot(tree.class); text(tree.class, pretty=0)
-tree.class.pred<-predict(tree.class,tst,type='class')
-tree.class.train_err<-mean(trn$class!=predict(tree.class,type='class'))
-tree.class.test_err<-mean(tst$class!=tree.class.pred)
-tree.class.train_err
-tree.class.test_err
+tree.class <- tree(class ~ . - quality, trn)
+plot(tree.class); text(tree.class, pretty = 0)
+tree.class.pred <- predict(tree.class, tst, type = 'class')
+tree.class.train_err <- mean(trn$class != predict(tree.class, type = 'class'))
+tree.class.test_err <- mean(tst$class != tree.class.pred)
+# tree.class.train_err
+# tree.class.test_err
 ```
-The resulting classification tree creates splits on 4 variables, Alcohol, Total Sulfur Dioxide, Sulphates, and Volatile Acidity. There are 10 terminal nodes. The tree has a test error rate of 0.297. This test rate is fairly low, but as mentioned before, if one conducts pruning on the tree, the error rate can decrease and a more accurate model is created. 
+
+The resulting classification tree creates splits on 4 variables: Alcohol, Total Sulfur Dioxide, Sulphates, and Volatile Acidity. The tree has a test error rate of `r round(tree.class.test_err, 3)`. This test rate is fairly low, but as mentioned before, if one conducts pruning on the tree, the error rate can decrease and a more accurate model is created. 
 
 Pruning is performed on the tree using cross validation, the tree is built many times with a different number of splits and the tree that produces the smallest error rate is selected. Cross validation on this model shows that the best model is the model built with 8 splits. The resulting pruned model will now have 8 terminal nodes and still uses the four variables in the un-pruned tree.    
+
 ```{r pruned tree}
 # 2. pruned decision tree 
-cv.tree.class<-cv.tree(tree.class,FUN=prune.misclass)
+cv.tree.class <- cv.tree(tree.class, FUN = prune.misclass)
 plot(cv.tree.class)
-prune.tree.class<-prune.misclass(tree.class,best=8)
-plot(prune.tree.class);text(prune.tree.class,pretty=0)
-prune.tree.class.pred<-predict(prune.tree.class,tst,type='class')
-prune.tree.class.train_err<-mean(trn$class!=predict(prune.tree.class,type='class'))
-prune.tree.class.test_err<-mean(tst$class!=prune.tree.class.pred)
-prune.tree.class.test_err
+prune.tree.class <- prune.misclass(tree.class, best = 8)
+plot(prune.tree.class); text(prune.tree.class, pretty = 0)
+prune.tree.class.pred <- predict(prune.tree.class, tst, type = 'class')
+prune.tree.class.train_err <- mean(trn$class != predict(prune.tree.class, type = 'class'))
+prune.tree.class.test_err <- mean(tst$class != prune.tree.class.pred)
+# prune.tree.class.test_err
 ```
-The pruned tree produces a test error rate to the original tree with a test MSE of 0.3. The pruned tree would be selected using the concept of Occam's Razor, where the simplest model is the best model choice.
 
-Using a Random Forest tree can often improve upon the error rate of a simple classification tree. While the test MSE was small in the classification tree, the team believed the error rate could be decreases in using a more complex tree based method.  
+The pruned tree produces a test error rate to the original tree with a misclassification error of `r prune.tree.class.test_err`.Using a Random Forest tree can often improve upon the error rate of a simple classification tree. While the test MSE was small in the classification tree, the team believed the error rate could be decreased using a more complex tree based method.  
 
 ## Random Forest Classification
 The random forest model is an ensemble tree-based method, which creates multiple trees from bootstrap samples and averages the results from all the fitted trees. Many bootstrap samples are created with replacement and then a classification tree is fitted on each bootstrap sample with a random subset of the predictors. Once a prediction has been made by the bootstrapped trees, the final classification is based on majority vote of the bootstrap predictions. Similarly, the prediction in the regression context is an average of the predictions of the bootstrapped trees.  
@@ -179,35 +180,40 @@ The random forest model is an ensemble tree-based method, which creates multiple
 The advantage for using an ensemble method over a regular classification or regression tree is that because there are many bootstrap samples being averaged together, there is less variance. This is similar to how the variance of the sample mean goes down as the sample size increases. Although it will probably increase our prediction accuracy, the random forest loses the interpretability that the basic trees have. Furthermore, the algorithm that is used to fit the random forest is very computationally expensive.  
 
 The first thing that should be done in building a boosted tree is cross validation. Here the model is built many times with the number of predictors included from one to all predictors. The test MSE is evaluated for each and the smallest value is selected. A plot of these is included below, the tree that produced the smallest error rate was the tree built with two variables, so that was the tree selected through cross validation.  
+
 ```{r rf classification CV}
 #----- classification -----
 set.seed(702)
 test.err <- double(11)
 for (mtry in 1:11){
-  fit <- randomForest(class~.-quality, trn,mtry=mtry)
-  pred <- predict(fit,tst)
+  fit <- randomForest(class ~ . - quality, trn, mtry = mtry)
+  pred <- predict(fit, tst)
   test.err[mtry] <- mean(tst$class != pred)
 }
-matplot(1:mtry,test.err,pch=19,col='red',type='b',
-        ylab='Mean Square Error')
+
+# Plot cross validation results
+matplot(1:mtry, test.err, pch = 1, type = 'b',
+        xlab = "mtry", ylab = 'Mean Square Error')
+points(which.min(test.err), test.err[which.min(test.err)], pch = 8, col = "#CC0000")
 ```
 
 ```{r rf class models}
-rf.class <- randomForest(class~.-quality,trn,mtry=2)
+rf.class <- randomForest(class ~ . - quality, trn, mtry = 2)
 rf.class.pred <- predict(rf.class,tst)
-rf.class.train_err <- mean(trn$class!=predict(rf.class))
-rf.class.test_err <- mean(tst$class!=rf.class.pred)
-rf.class.train_err
-rf.class.test_err
+rf.class.train_err <- mean(trn$class != predict(rf.class))
+rf.class.test_err <- mean(tst$class != rf.class.pred)
+# rf.class.train_err
+# rf.class.test_err
 ```
-Once the Random Forest tree with two variables was built, the final test MSE was calculated. This model produced a test MSE of 0.197, which is significantly lower than the test MSE for the classification model (0.3). The Random Forest model was selected as the best method for predicting if a wine were to fall into the "high" or "low" class when it comes to wine quality.  
+
+Once the Random Forest tree with two variables was built, the final test MSE was calculated. This model produced a test MSE of `r round(rf.class.test_err, 3)`, which is significantly lower than the test MSE for the basic classification tree (`r round(prune.tree.class.test_err`)). The random forest was selected as the best method for predicting if a wine were to fall into the "high" or "low" class when it comes to wine quality.
 
 # Regression Methods
 ## Multiple Linear Regression
 NEED CODE FROM YUN
 ```{r mlr}
 #### REGRESSION ####
-lm.reg <- lm(form.reg, data = trn)
+lm.reg <- lm(quality ~ . - class, data = trn)
 
 # Obtain RMSE and results for linear model
 lm.reg.pred <- predict(lm.reg, newdata = tst)
@@ -269,107 +275,36 @@ The biggest benefit to using a multiple linear regression model is its interpret
 
 ## Random Forest for Regression
 As mentioned earlier in the classification section, Random Forest is an ensemble tree-based method, which creates multiple trees from bootstrap samples and averages the results from all the fitted trees. This model will be built exactly in the same way as the classification model, except the tree will not be predicting if the wine is a part of the good or bad class, but rather predicts the quality score associated with each wine. As before the model will first be built using cross validation to determine the number of variables that should be used in order to produce the smallest test MSE. Similar to the random forest classification tree, the cross validation selects the tree with 2 variables.
+
 ```{r rf regression}
 #----- regression -----
-test.err=double(11)
+# loop thru all the different values of mtry
+test.err = double(11)
 for (mtry in 1:11){
-  fit<- randomForest(quality~.-class,trn,mtry=mtry)
-  pred <- predict(fit,tst)
+  fit<- randomForest(quality ~ . - class, trn, mtry = mtry)
+  pred <- predict(fit, tst)
   test.err[mtry] <- sqrt(mean((tst$quality - pred)^2))
 }
-matplot(1:mtry,test.err,pch=19,col='red',type='b',
-        ylab='Mean Square Error')
 
-rf.reg<-randomForest(quality~.-class,trn,mtry=2)
-rf.reg.pred<-predict(rf.reg,tst)
-rf.reg.train_err<-sqrt(mean((trn$quality-predict(rf.reg))^2))
-rf.reg.test_err<-sqrt(mean((tst$quality-rf.reg.pred)^2))
-rf.reg.train_err
-rf.reg.test_err
+# Plot cross validation results
+matplot(1:mtry, test.err, pch = 1, type = 'b', ylab = 'Mean Square Error', xlab = "mtry")
+points(which.min(test.err), test.err[which.min(test.err)], pch = 8, col = "#CC0000")
+
+# fit the random forest with the best results
+rf.reg <- randomForest(quality ~ . - class, trn, mtry = 2)
+rf.reg.pred <- predict(rf.reg, tst)
+rf.reg.train_err <- sqrt(mean((trn$quality - predict(rf.reg))^2))
+rf.reg.test_err <- sqrt(mean((tst$quality - rf.reg.pred)^2))
+#rf.reg.train_err
+#rf.reg.test_err
 ```  
 The test MSE for the Regression Random Forest using 2 variables is 0.55. COMPARE THIS TO MLR WHEN WE GET YUN'S CODE.
-
-I'm not sure we need these next 2 sections because most of the methods we are using do model selection. I don't have Yun's code, but I'm assuming he does some sort of variable selection, so this part seems extraneous. 
-## Cross Validation
-Again, our focus is on the classification accuracy of machine learning methods. In particular, we will be using traditional cross-validation methods to assess the accuracy, sensitivity, and specificity of each of the models. We split the data into a training and test data set in order to later evaluate the model's prediction accuracy or root mean squared error (RMSE). For this project we used a 80/20 split, training the data on the 80% and testing the trained models on the withheld 20%. We will then repeat this process over 5 folds of the data, averaging the results.
-
-```{r CV}
-# Specify the cross-validation method (5-fold CV)
-trctrl <- trainControl(method = "cv", number = 5)
-```
-
-## Variable Selection
-Since we have two different tasks that we are trying to complete (classification and regression), we went about selecting the variables for each task differently. For the classification task, we ran an initial random forest model on the entire dataset with selected predictors. We then looked at the variable importance of the predictors to decide which variables we would use in our final models. Within the context of machine learning, variable importance refers to how much a given model "uses" that variable to make accurate predictions. In other words, the more a model relies on a variable to make predictions, the more important it is for the model. 
-
-```{r class.select, out.height='4in'}
-# Write preliminary model  
-model.class.pre <- class ~ .
-
-# Fit preliminary random forest on entire data set
-rf.class.pre <- randomForest(model.class.pre, data = wine[,-12], 
-                             ntree = 500, mtry = 3, importance = TRUE)
-
-# Create data frame of variable importance
-df.class.pre <- rf.class.pre$importance %>% as.data.frame()
-X <- rownames(df.class.pre)
-
-# Sort the data frame and prep for plot
-VIrf.pre.class.sort <- df.class.pre[order(df.class.pre[,"MeanDecreaseAccuracy"]), , drop = FALSE]
-VIrf.pre.class.sort$X <- rownames(VIrf.pre.class.sort)
-VIrf.pre.class.sort$X <- factor(VIrf.pre.class.sort$X, levels = VIrf.pre.class.sort$X)
-
-# Plot variable importance
-vimp.class <- ggplot(VIrf.pre.class.sort, aes(x = X, y = MeanDecreaseAccuracy)) +
-                geom_bar(stat = 'identity', position = 'dodge', fill="lightblue") +
-                theme(axis.text.x = element_text(angle = 30, hjust = 1)) +
-                ylab("Mean Decrease in Accuracy") + xlab("Predictor") +
-                ggtitle("Variable Importance")
-vimp.class
-```  
-
-We decided to choose the five variables with the most variable importance, leaving us with `alcohol`, `sulphates`, `volatile.acidity`, `density`, and `total.sulfur.dioxide`. The fact that density proved to be an important variable for classification was relatively surprising. One would think that the wine quality would be determined based on its attributes that are detectable by the human senses. For this same reason, alcohol, acidity, and sulphates made sense in terms of variable importance. Sulphates are essential for the preservation of the wine, an overly- or underly-acidic wine may be considered poor, and the alcohol content has a connection to the fermentation process, where the must (aka the grape juice before it undergoes fermentation) actually becomes wine.
-
-When looking at the problem in terms of a regression context, we used best subsets selection for feature selection. Using the `leaps` library and the `regsubsets()` function in R, we are able to compare all of the possible models from the given set of predictors. Through best subset selection, we can get the set of predictors for a model with any given amount of predictors. We looked at three different model criteria to compare models of different amounts of predictor variables: Mallow's Cp, BIC, and $R^2_{\text{adj}}$.
-
-```{r reg.select, out.height='3.5in'}
-# Create model and get summary output
-lm.sub <- regsubsets(quality ~ ., data = wine[,-13], nvmax = 11)
-smre <- lm.sub %>% summary()
-
-# Plot the Cp, BIC, R^2, RSS results in one plot
-par(mfrow = c(2,2))
-plot(smre$cp, xlab = "# of Preds", ylab = "Cp")
-points(which.min(smre$cp), smre$cp[which.min(smre$cp)], pch = 8, col = "#CC0000")
-plot(smre$bic, xlab = "# of Preds", ylab = "BIC")
-points(which.min(smre$bic), smre$bic[which.min(smre$bic)], pch = 8, col = "#CC0000")
-plot(smre$adjr2, xlab = "# of Preds", ylab = "Adjusted R^2")
-points(which.max(smre$adjr2), smre$adjr2[which.max(smre$adjr2)], pch = 8, col = "#CC0000")
-plot(smre$rss, xlab = "# of Preds", ylab = "Training RSS")
-points(which.min(smre$rss), smre$rss[which.min(smre$rss)], pch = 8, col = "#CC0000")
-
-# Best subset selection
-best.betas <- coef(lm.sub, id = 6) %>% round(2)
-```
-
-Although each of the three model criteria suggested a different number of predictor variables, they were all within the same region (between 6 and 8 predictors). Since they were so close, we adhered to the Occam's Razor and went with the simplest, six-variable model. This was the model favored by BIC, which gives the greatest penalty for complexity in models. The six variables used in the regression context are then `volatile.acidity`, `chlorides`, `total.sulfur.dioxide`, `pH`, `sulphates`, and `alcohol`. All of the variables from the classification selection appear here with the exception of density. In the regression context, `pH` was the variable that proved to be a rather unintuitive inclusion, since it is similar to density in the sense that it is not easily detected by the five human senses. The inclusion of these two variables in the model portray the importance of the chemical properties of a bottle of wine when it comes to quality.
-
-```{r form}
-# Write formula for regression models
-form.reg <- quality ~ volatile.acidity + chlorides + pH + 
-            total.sulfur.dioxide + sulphates + alcohol
-
-# Write formula for classification models
-form.class <- class ~ alcohol + sulphates + density +
-              volatile.acidity + total.sulfur.dioxide
-```
-
-
 
 # Results  
 
 ```{r create.df}
 # Create data frame output for regression models
-df.reg <- rbind.data.frame(lm.reg.rmse, rf.reg.rmse) %>% round(4)
+df.reg <- rbind.data.frame(lm.reg.rmse, rf.reg.test_err) %>% round(4)
 df.reg$method <- reg
 colnames(df.reg) <- c(LETTERS[1:2])
 df.reg <- df.reg %>% select("B", "A")
@@ -378,8 +313,7 @@ colnames(df.reg) <- c("Regression Method", "Root MSE")
 # Create data frame output for classification models
 df.class <- rbind.data.frame(prune.tree.class.test_err, rf.class.test_err) %>% round(4)
 colnames(df.class) <- c("Misclassification Rate")
-rownames(df.class) <- c("Classification Model", "Random Forest")
-df.class
+rownames(df.class) <- c("Classification Tree", "Random Forest")
 ```
 
 ```{r reg.out}
@@ -416,3 +350,84 @@ Since this study solely looks at the prediction accuracy of machine learning tec
 
 The characteristics of any given wine are often derived from different geological and/or climatological
 conditions. For example, a wine that comes from a region close enough to the water to get a sea breeze may have a hint of saltiness in its aroma or taste. Similarly, a grape coming from a relatively young grove might give the wine different features than if the grove were hundreds of years old. It would be interesting to see how different weather conditions, terroirs, plant ages, and slopes affect the outcome of the wine in terms of quality. 
+
+
+
+# NOT NEEDED ???
+
+I'm not sure we need these next 2 sections because most of the methods we are using do model selection. I don't have Yun's code, but I'm assuming he does some sort of variable selection, so this part seems extraneous. 
+
+## Cross Validation
+Again, our focus is on the classification accuracy of machine learning methods. In particular, we will be using traditional cross-validation methods to assess the accuracy, sensitivity, and specificity of each of the models. We split the data into a training and test data set in order to later evaluate the model's prediction accuracy or root mean squared error (RMSE). For this project we used a 80/20 split, training the data on the 80% and testing the trained models on the withheld 20%. We will then repeat this process over 5 folds of the data, averaging the results.
+
+```{r CV, eval = F}
+# Specify the cross-validation method (5-fold CV)
+trctrl <- trainControl(method = "cv", number = 5)
+```
+
+## Variable Selection
+Since we have two different tasks that we are trying to complete (classification and regression), we went about selecting the variables for each task differently. For the classification task, we ran an initial random forest model on the entire dataset with selected predictors. We then looked at the variable importance of the predictors to decide which variables we would use in our final models. Within the context of machine learning, variable importance refers to how much a given model "uses" that variable to make accurate predictions. In other words, the more a model relies on a variable to make predictions, the more important it is for the model. 
+
+```{r class.select, out.height='4in', eval = F}
+# Write preliminary model  
+model.class.pre <- class ~ .
+
+# Fit preliminary random forest on entire data set
+rf.class.pre <- randomForest(model.class.pre, data = wine[,-12], 
+                             ntree = 500, mtry = 3, importance = TRUE)
+
+# Create data frame of variable importance
+df.class.pre <- rf.class.pre$importance %>% as.data.frame()
+X <- rownames(df.class.pre)
+
+# Sort the data frame and prep for plot
+VIrf.pre.class.sort <- df.class.pre[order(df.class.pre[,"MeanDecreaseAccuracy"]), , drop = FALSE]
+VIrf.pre.class.sort$X <- rownames(VIrf.pre.class.sort)
+VIrf.pre.class.sort$X <- factor(VIrf.pre.class.sort$X, levels = VIrf.pre.class.sort$X)
+
+# Plot variable importance
+vimp.class <- ggplot(VIrf.pre.class.sort, aes(x = X, y = MeanDecreaseAccuracy)) +
+                geom_bar(stat = 'identity', position = 'dodge', fill="lightblue") +
+                theme(axis.text.x = element_text(angle = 30, hjust = 1)) +
+                ylab("Mean Decrease in Accuracy") + xlab("Predictor") +
+                ggtitle("Variable Importance")
+vimp.class
+```  
+
+We decided to choose the five variables with the most variable importance, leaving us with `alcohol`, `sulphates`, `volatile.acidity`, `density`, and `total.sulfur.dioxide`. The fact that density proved to be an important variable for classification was relatively surprising. One would think that the wine quality would be determined based on its attributes that are detectable by the human senses. For this same reason, alcohol, acidity, and sulphates made sense in terms of variable importance. Sulphates are essential for the preservation of the wine, an overly- or underly-acidic wine may be considered poor, and the alcohol content has a connection to the fermentation process, where the must (aka the grape juice before it undergoes fermentation) actually becomes wine.
+
+When looking at the problem in terms of a regression context, we used best subsets selection for feature selection. Using the `leaps` library and the `regsubsets()` function in R, we are able to compare all of the possible models from the given set of predictors. Through best subset selection, we can get the set of predictors for a model with any given amount of predictors. We looked at three different model criteria to compare models of different amounts of predictor variables: Mallow's Cp, BIC, and $R^2_{\text{adj}}$.
+
+```{r reg.select, out.height='3.5in', eval = F}
+# Create model and get summary output
+lm.sub <- regsubsets(quality ~ ., data = wine[,-13], nvmax = 11)
+smre <- lm.sub %>% summary()
+
+# Plot the Cp, BIC, R^2, RSS results in one plot
+par(mfrow = c(2,2))
+plot(smre$cp, xlab = "# of Preds", ylab = "Cp")
+points(which.min(smre$cp), smre$cp[which.min(smre$cp)], pch = 8, col = "#CC0000")
+plot(smre$bic, xlab = "# of Preds", ylab = "BIC")
+points(which.min(smre$bic), smre$bic[which.min(smre$bic)], pch = 8, col = "#CC0000")
+plot(smre$adjr2, xlab = "# of Preds", ylab = "Adjusted R^2")
+points(which.max(smre$adjr2), smre$adjr2[which.max(smre$adjr2)], pch = 8, col = "#CC0000")
+plot(smre$rss, xlab = "# of Preds", ylab = "Training RSS")
+points(which.min(smre$rss), smre$rss[which.min(smre$rss)], pch = 8, col = "#CC0000")
+
+# Best subset selection
+best.betas <- coef(lm.sub, id = 6) %>% round(2)
+```
+
+Although each of the three model criteria suggested a different number of predictor variables, they were all within the same region (between 6 and 8 predictors). Since they were so close, we adhered to the Occam's Razor and went with the simplest, six-variable model. This was the model favored by BIC, which gives the greatest penalty for complexity in models. The six variables used in the regression context are then `volatile.acidity`, `chlorides`, `total.sulfur.dioxide`, `pH`, `sulphates`, and `alcohol`. All of the variables from the classification selection appear here with the exception of density. In the regression context, `pH` was the variable that proved to be a rather unintuitive inclusion, since it is similar to density in the sense that it is not easily detected by the five human senses. The inclusion of these two variables in the model portray the importance of the chemical properties of a bottle of wine when it comes to quality.
+
+```{r form, eval = F}
+# Write formula for regression models
+form.reg <- quality ~ volatile.acidity + chlorides + pH + 
+            total.sulfur.dioxide + sulphates + alcohol
+
+# Write formula for classification models
+form.class <- class ~ alcohol + sulphates + density +
+              volatile.acidity + total.sulfur.dioxide
+```
+
+
