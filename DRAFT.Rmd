@@ -26,6 +26,7 @@ library(rpart.plot) # visualization of classification tree
 library(randomForest) # fitting random forest model
 library(kableExtra) # making bolded headers for tables
 library(gridExtra) # stitching graphs together
+library(tree)
 
 # Read in data set
 wine <- read.csv2(file = "winequality-red.csv", header = TRUE, dec = ".",
@@ -38,9 +39,11 @@ set.seed(702)
 \newpage
 
 # Introduction
-There has been a push towards the implementation of different analytics solutions within the agriculture industry, especially in the realms of crop health and yield. These sort of analyses can help farmers reduce waste and improve profits. In particular, the viticulture industry stands to benefit from such methods, being that the production of wine is lengthy and multifaceted. Winemakers can work to optimize revenue by analyzing their input and output (crops and wines). Specifically, costs may be cut out if machine learning methods were able to predict the quality of wine based on different metrics, since wine producers would no longer have to hire expert wine tasters to determine wine quality. 
 
-In this study, our objective is to try and predict the quality of wine using a variety of statistical learning techniques. We will look at this problem from a regression standpoint as well as a classification standpoint. Using regression, we will try and predict the exact rating (0 to 10) of a particular wine. On the other hand, when we look at classification, we will try to classify a particular wine as either good or bad, taking wines rated from 0-5 as low quality wines and wines rated from 6-10 as high quality wines. We will be assessing the prediction accuracy of the following methods:
+There has been a push towards the implementation of different analytics solutions within the agriculture industry, especially in the realms of crop health and yield. These sort of analyses can help farmers reduce waste and improve profits. In particular, the viticulture industry stands to benefit from such methods, being that the production of wine is lengthy and multifaceted. Winemakers can work to optimize revenue by analyzing their input and output (crops and wines). Specifically, costs may be cut out if machine learning methods were able to predict the quality of wine based on different metrics, since wine producers would no longer have to hire expert wine tasters to determine wine quality. The question this study is most interested in is to determine if there is a way to predict the quality of a wine without having to use taste testers. The team is hypothesizing that both the classifation and regression methods can accurately describe the quality of wine.
+
+In this study, the objective is to model and predict the quality of wine using a variety of statistical learning techniques. This will be done by performing both regression and classification methods, with regression ranking the quality of the wines on a scale of zero to ten, with zero being the lowest quality and ten being the highest quality. The classification models will be classifying the wines into two categories, good and bad, with wines in the bad category having a score of zero to five, and wines in the good category having a quality score between six and ten. The assessment of the prediction accuracy will be performed by the following methods:
+
 
 ```{r methods}
 # Make table of methods
@@ -65,12 +68,11 @@ To run the code for the project, the following libraries are required:
   * `randomForest`: fitting random forest models
 
 # Data
-The data set used is the `Wine Quality` dataset from the UCI Machine Learning Repository. The data set is composed of 1600 observations of different variants of the Portuguese "Vinho Verde" red wine. For each wine, various physical and chemical features of the wine were measured, including a measurement of quality given by an expert wine taster. Our objective is to use the different features to predict the quality of the wine using different machine learning techniques.
+The data set used is the Wine Quality dataset from the UCI Machine Learning Repository. The data set is comprised of 1600 observations of different variants of the Portuguese "Vinho Verde" red wine. For each wine, various physical and chemical features of each wine was measured, including a measurement of quality given by an expert wine taster. The objective is to use the different features to predict the quality of the wine using different machine learning techniques.
 
 ## Variable Descriptions  
 Each entry in the dataset represents the different metrics of the following attributes of a single type of wine.
-
-  * **fixed acidity**: the quantity of fixed acids found in the wines. The predominant fixed acids found in wines are tartaric, malic, citric, and succinic, all of which come from the grapes with the exception of the succinic acid, which comes from the yeast in fermentation. 
+  * **fixed acidity**: the quantity of fixed acids found in the wines. The predominant fixed acids found in wines are tartaric, malic, citric, and succinic, all of which come from the grapes except for the succinic acid, which comes from the yeast in fermentation. 
   * **volatile acidity**: the steam distillable acids present in wine, primarily acetic acid but also lactic, formic, butyric, and propionic acids. These acids generally come from the fermentation process.
   * **citric acid**: added to the wine as a natural preservative or for acidity and tartness.
   * **residual sugar**: the quantity of sugar left in the wine after the fermentation process.
@@ -84,13 +86,13 @@ Each entry in the dataset represents the different metrics of the following attr
   * **quality**: score of quality of the wine given by expert tasters (score between 0 and 10).
 
 ## Data Exploration
-The first thing that we did with the data upon reading it in was take the numeric variables and create pairwise scatterplots. This way, we can get a feel for what variables are related as well as what the correlation structure looks like, since variables that are very related may cause problems moving forward.
+The first thing that was done to the data upon reading it was to use the numeric variables and create pairwise scatterplots. This way, one can obtain a greater understanding of how the variables relate to one another, as well as if there is any correlation structure and what it looks like. If the variables are related, there may be problems moving forward, so it is important to know these relationships before the analysis is performed.
 
 ```{r pairs, out.width='4in', out.height='3.5in'}
 # Create pairwise scatterplots
 pairs(wine[,c(2,5,7,8,9,10,11)])
 ```
-Based on the pairwise scatterplots, we suspect that pH may be linearly correlated with density, sulphates, and alcohol. This leads us to believe that there is some relationship between the chemical properties of the wines. The following correlation plot gives a numeric summary of the linear relationship between the variables.
+Based on the pairwise scatterplots, one can conclude that pH may be linearly correlated with density, sulphates, and alcohol. This leads us to believe that there is some relationship between the chemical properties of the wines. here also appears to be a relationship between density and alcohol. The following correlation plot gives a numeric summary of the linear relationship between the variables.
 
 ```{r corrplot, echo = FALSE, out.height='3.5in'}
 # Create visualization of correlation structure
@@ -103,7 +105,20 @@ corrplot(cor(wine[,c(2,5,7,8,9,10,11)]),
          diag = T)
 ```
 
-The only linear correlations that are on the higher side are between alcohol and density, which makes sense because the density of alcohol is slightly less than water. So as the concentration of alcohol gets higher, the density will naturally decrease. Similarly, the sulphates and chlorides seem to have a slightly positive linear relationship, while pH and density have a slightly negative linear relationship.
+The only linear correlations that are notably high are between alcohol and density. This makes sense because the density of alcohol is slightly less than water, meaning that as the concentration of alcohol gets higher, the density will naturally decrease. Similarly, the sulphates and chlorides seem to have a slightly positive linear relationship, while pH and density have a slightly negative linear relationship.
+
+### Good Wine Qualities v. Bad Wine Qualities
+
+After a split in the data was performed to pull out the wines classified as good and the wines classified as bad. Further analysis was performed on each group to see if any of the variables were significantly different between the two groups.  
+
+```{r good v bad}
+good.wine <- subset(wine, quality > 5)
+bad.wine <- subset(wine, quality <= 5)
+summary(good.wine)
+summary(bad.wine)
+```
+The two groups were similar in most of the variables. Two notable differences are that the wines classified as "good" had a lower mean value than "bad" wines for total sulfur dioxide. Good wines had a mean of 39, which was significantly lower than the mean of the "bad" wines at 54.6. Another difference to note is the difference in the mean for alcohol. The good wines had a mean alcohol content at 10.8, while the bad wines had a lower mean alcohol content around 9.9. There were also differences in fixed acidity, with the bad wines having a lower mean. There were also several variables that don't seem to change between the two groups including pH, residual sugar, chlorides, and density. 
+
 
 ## Data Processing
 ```{r partition}
@@ -118,11 +133,165 @@ trn <- wine[ind,]
 tst <- wine[-ind,]
 ```
 
-Fortunately, the `wine` dataset that we worked with was very tidy; there were no missing values. We didn't standardize the data initially, but when training the support vector machine and the k-nearest neighbors models we centered and scaled the data. We also created the variable for classification, transforming the quality variable into a binary "low" or "high" response as mentioned in the introduction.
+Fortunately, the dataset was very tidy; there were no missing values. The data was first split into a training and test data set. The training data set uses 80% of the observations and the test set contains the remaining 20%. The models are built on the training set and evaluated on the test set. This is important so that the models are not overfit. A variable was then created for classification, transforming the quality variable into a binary "low" or "high" response as mentioned in the introduction.
 
-# Methods
+# Classification Models
+## Classification Tree
+
+THIS SECTION NEEDS TO BE EDITED
+
+The basic classification tree is based on partitioning the data into subgroups using simple binary splitting. Initially, all objects are considered a single group. Then, the group is repeatedly split into two subgroups based on the criteria of a certain variable. In the classification setting, an observation is classified in a specific region with majority vote. Trees are grown as big as possible and then pruned using cost-complexity pruning. This is done to ensure the data is not being overfit. The tradeoff here is that pruning increases the bias. The advantage of using a basic tree is that it is easy to understand and has a good interpretability, which is not something that translates over to ensemble methods. Additionally, the classification tree is not very computationally expensive, unlike the random forest model. 
+
+```{r tree, out.height='3in'}
+# Set seed for reprodicibility
+set.seed(702)
+
+# 1. full size decision tree
+tree.class<-tree(class~.-quality,trn)
+plot(tree.class); text(tree.class, pretty=0)
+tree.class.pred<-predict(tree.class,tst,type='class')
+tree.class.train_err<-mean(trn$class!=predict(tree.class,type='class'))
+tree.class.test_err<-mean(tst$class!=tree.class.pred)
+tree.class.train_err
+tree.class.test_err
+```
+The resulting classification tree creates splits on 4 variables, Alcohol, Total Sulfur Dioxide, Sulphates, and Volatile Acidity. There are 10 terminal nodes. The tree has a test error rate of 0.297. This test rate is fairly low, but as mentioned before, if one conducts pruning on the tree, the error rate can decrease and a more accurate model is created. 
+
+Pruning is performed on the tree using cross validation, the tree is built many times with a different number of splits and the tree that produces the smallest error rate is selected. Cross validation on this model shows that the best model is the model built with 8 splits. The resulting pruned model will now have 8 terminal nodes and still uses the four variables in the un-pruned tree.    
+```{r pruned tree}
+# 2. pruned decision tree 
+cv.tree.class<-cv.tree(tree.class,FUN=prune.misclass)
+plot(cv.tree.class)
+prune.tree.class<-prune.misclass(tree.class,best=8)
+plot(prune.tree.class);text(prune.tree.class,pretty=0)
+prune.tree.class.pred<-predict(prune.tree.class,tst,type='class')
+prune.tree.class.train_err<-mean(trn$class!=predict(prune.tree.class,type='class'))
+prune.tree.class.test_err<-mean(tst$class!=prune.tree.class.pred)
+prune.tree.class.test_err
+```
+The pruned tree produces a test error rate to the original tree with a test MSE of 0.3. The pruned tree would be selected using the concept of Occam's Razor, where the simplest model is the best model choice.
+
+Using a Random Forest tree can often improve upon the error rate of a simple classification tree. While the test MSE was small in the classification tree, the team believed the error rate could be decreases in using a more complex tree based method.  
+
+## Random Forest Classification
+The random forest model is an ensemble tree-based method, which creates multiple trees from bootstrap samples and averages the results from all the fitted trees. Many bootstrap samples are created with replacement and then a classification tree is fitted on each bootstrap sample with a random subset of the predictors. Once a prediction has been made by the bootstrapped trees, the final classification is based on majority vote of the bootstrap predictions. Similarly, the prediction in the regression context is an average of the predictions of the bootstrapped trees.  
+
+The advantage for using an ensemble method over a regular classification or regression tree is that because there are many bootstrap samples being averaged together, there is less variance. This is similar to how the variance of the sample mean goes down as the sample size increases. Although it will probably increase our prediction accuracy, the random forest loses the interpretability that the basic trees have. Furthermore, the algorithm that is used to fit the random forest is very computationally expensive.  
+
+The first thing that should be done in building a boosted tree is cross validation. Here the model is built many times with the number of predictors included from one to all predictors. The test MSE is evaluated for each and the smallest value is selected. A plot of these is included below, the tree that produced the smallest error rate was the tree built with two variables, so that was the tree selected through cross validation.  
+```{r rf classification CV}
+#----- classification -----
+set.seed(702)
+test.err <- double(11)
+for (mtry in 1:11){
+  fit <- randomForest(class~.-quality, trn,mtry=mtry)
+  pred <- predict(fit,tst)
+  test.err[mtry] <- mean(tst$class != pred)
+}
+matplot(1:mtry,test.err,pch=19,col='red',type='b',
+        ylab='Mean Square Error')
+```
+
+```{r rf class models}
+rf.class <- randomForest(class~.-quality,trn,mtry=2)
+rf.class.pred <- predict(rf.class,tst)
+rf.class.train_err <- mean(trn$class!=predict(rf.class))
+rf.class.test_err <- mean(tst$class!=rf.class.pred)
+rf.class.train_err
+rf.class.test_err
+```
+Once the Random Forest tree with two variables was built, the final test MSE was calculated. This model produced a test MSE of 0.197, which is significantly lower than the test MSE for the classification model (0.3). The Random Forest model was selected as the best method for predicting if a wine were to fall into the "high" or "low" class when it comes to wine quality.  
+
+# Regression Methods
+## Multiple Linear Regression
+NEED CODE FROM YUN
+```{r mlr}
+#### REGRESSION ####
+lm.reg <- lm(form.reg, data = trn)
+
+# Obtain RMSE and results for linear model
+lm.reg.pred <- predict(lm.reg, newdata = tst)
+lm.reg.rmse <- sqrt(mean((lm.reg.pred - tst$quality)^2))
+```
+Multiple Linear Regression is the extension of simple linear regression to a set of multiple predictor variables. The goal of multiple linear regression is to model the linear relationship between a continuous response and two or more predictor variables. Like simple linear regression, coefficient estimates are found by minimizing the sum of the squared errors. The formula for a multiple linear regression model with $p$ predictor variables is as follows:  
+$$
+\begin{aligned}
+&Y_i = \beta_0 + \beta_1X_{i1} + \beta_2X_{i2} + ... + \beta_pX_{ip} + \epsilon_i, \\
+& \quad \text{where for } i = n \text{ observations}, \\
+& \quad y_i = \text{dependent variable (response)} \\
+& \quad x_{ji} = \text{indpendent variables } (j = 1, ... , p) \\
+& \quad \beta_0 = \text{y-intercept} \\
+& \quad \beta_j = \text{slope coefficients for each variable} \\
+& \quad \epsilon_i = \text{residuals (error term of model)} \\
+\end{aligned}
+$$
+
+The multiple linear regression model is subject to the following assumptions about the data:  
+
+  * Linear relationship between response and predictors
+  * No collinearity between predictor variables
+  * $y_i$'s are iid
+  * $\epsilon_i \sim N(0, \sigma^2)$
+
+To assess these assumptions, we looked at various diagnostics plots:
+```{r lm.diag, out.height = '3.5in'}
+# Look at residual plot for nonlinearity
+regres <- ggplot(data = data.frame(lm.reg$residuals, lm.reg$fitted.values), 
+                 aes(x = lm.reg$residuals, y = lm.reg$fitted)) + 
+            geom_point(position = 'jitter') + labs(x = "Residuals", y = "Fitted Values") 
+
+# Look at standardized residual plot for outliers
+stdres <- ggplot(data = data.frame(x = 1:length(lm.reg$residuals), 
+                                   y = scale(lm.reg$residuals)), 
+                 aes(y = y, x = x)) + 
+            geom_point() + labs(x = "Index", y = "Standardized Residuals")
+
+# Look at a qqplot to assess normality
+ggqq <- ggplot(data.frame(lm.reg$residuals), aes(sample = lm.reg$residuals)) + 
+          stat_qq() + stat_qq_line(col = "blue", lty = 2) + 
+          labs(x = "Theoretical", y = "Sample")
+
+# Look at residuals vs leverage plot
+reslev <- ggplot(lm.reg, aes(x = .hat, y = .stdresid)) + 
+            geom_point(aes(size = .cooksd)) + 
+            stat_smooth(method = "lm") + 
+            labs( x = "Leverage", y = "Standardized Residuals") + 
+            scale_size_continuous("Cook's D", range = c(1,5)) +
+            theme_bw() + theme(legend.position = "right")
+
+# Stitch all the graphs together
+grid.arrange(regres, stdres, ggqq, reslev, nrow = 2)
+```
+
+~ talk about residual plots here ~
+
+The biggest benefit to using a multiple linear regression model is its interpretability and ease of use. The coefficients can be computed efficiently and they are have clear and easy interpretations. It is also possible to make inference on any of the variables or linear combination of variables. The most signficiant drawback of using the multiple linear regression model is that it is subject to distributional assumptions, meaning that if the assumptions are violated, our estimates and inference will be unstable at best and invalid at worst. 
+
+## Random Forest for Regression
+As mentioned earlier in the classification section, Random Forest is an ensemble tree-based method, which creates multiple trees from bootstrap samples and averages the results from all the fitted trees. This model will be built exactly in the same way as the classification model, except the tree will not be predicting if the wine is a part of the good or bad class, but rather predicts the quality score associated with each wine. As before the model will first be built using cross validation to determine the number of variables that should be used in order to produce the smallest test MSE. Similar to the random forest classification tree, the cross validation selects the tree with 2 variables.
+```{r rf regression}
+#----- regression -----
+test.err=double(11)
+for (mtry in 1:11){
+  fit<- randomForest(quality~.-class,trn,mtry=mtry)
+  pred <- predict(fit,tst)
+  test.err[mtry] <- sqrt(mean((tst$quality - pred)^2))
+}
+matplot(1:mtry,test.err,pch=19,col='red',type='b',
+        ylab='Mean Square Error')
+
+rf.reg<-randomForest(quality~.-class,trn,mtry=2)
+rf.reg.pred<-predict(rf.reg,tst)
+rf.reg.train_err<-sqrt(mean((trn$quality-predict(rf.reg))^2))
+rf.reg.test_err<-sqrt(mean((tst$quality-rf.reg.pred)^2))
+rf.reg.train_err
+rf.reg.test_err
+```  
+The test MSE for the Regression Random Forest using 2 variables is 0.55. COMPARE THIS TO MLR WHEN WE GET YUN'S CODE.
+
+I'm not sure we need these next 2 sections because most of the methods we are using do model selection. I don't have Yun's code, but I'm assuming he does some sort of variable selection, so this part seems extraneous. 
 ## Cross Validation
-Again, our focus is on the classification accuracy of machine learning methods. In particular, we will be using traditional cross-validation methods to assess the accuracy, sensitivity, and specificity of each of the models. We split the data into a training and test data set in order to later evaluate the model's prediction accuracy or root mean squared error (RMSE). For this project we used a 75/25 split, training the data on the 75% and testing the trained models on the withheld 25%. We will then repeat this process over 5 folds of the data, averaging the results.
+Again, our focus is on the classification accuracy of machine learning methods. In particular, we will be using traditional cross-validation methods to assess the accuracy, sensitivity, and specificity of each of the models. We split the data into a training and test data set in order to later evaluate the model's prediction accuracy or root mean squared error (RMSE). For this project we used a 80/20 split, training the data on the 80% and testing the trained models on the withheld 20%. We will then repeat this process over 5 folds of the data, averaging the results.
 
 ```{r CV}
 # Specify the cross-validation method (5-fold CV)
@@ -194,148 +363,7 @@ form.class <- class ~ alcohol + sulphates + density +
               volatile.acidity + total.sulfur.dioxide
 ```
 
-## Multiple Linear Regression
-```{r mlr}
-#### REGRESSION ####
-lm.reg <- lm(form.reg, data = trn)
 
-# Obtain RMSE and results for linear model
-lm.reg.pred <- predict(lm.reg, newdata = tst)
-lm.reg.rmse <- sqrt(mean((lm.reg.pred - tst$quality)^2))
-```
-Multiple Linear Regression is the extension of simple linear regression to a set of multiple predictor variables. The goal of multiple linear regression is to model the linear relationship between a continuous response and two or more predictor variables. Like simple linear regression, coefficient estimates are found by minimizing the sum of the squared errors. The formula for a multiple linear regression model with $p$ predictor variables is as follows:  
-$$
-\begin{aligned}
-&Y_i = \beta_0 + \beta_1X_{i1} + \beta_2X_{i2} + ... + \beta_pX_{ip} + \epsilon_i, \\
-& \quad \text{where for } i = n \text{ observations}, \\
-& \quad y_i = \text{dependent variable (response)} \\
-& \quad x_{ji} = \text{indpendent variables } (j = 1, ... , p) \\
-& \quad \beta_0 = \text{y-intercept} \\
-& \quad \beta_j = \text{slope coefficients for each variable} \\
-& \quad \epsilon_i = \text{residuals (error term of model)} \\
-\end{aligned}
-$$
-
-The multiple linear regression model is subject to the following assumptions about the data:  
-
-  * Linear relationship between response and predictors
-  * No collinearity between predictor variables
-  * $y_i$'s are iid
-  * $\epsilon_i \sim N(0, \sigma^2)$
-
-To assess these assumptions, we looked at various diagnostics plots:
-```{r lm.diag, out.height = '3.5in'}
-# Look at residual plot for nonlinearity
-regres <- ggplot(data = data.frame(lm.reg$residuals, lm.reg$fitted.values), 
-                 aes(x = lm.reg$residuals, y = lm.reg$fitted)) + 
-            geom_point(position = 'jitter') + labs(x = "Residuals", y = "Fitted Values") 
-
-# Look at standardized residual plot for outliers
-stdres <- ggplot(data = data.frame(x = 1:length(lm.reg$residuals), 
-                                   y = scale(lm.reg$residuals)), 
-                 aes(y = y, x = x)) + 
-            geom_point() + labs(x = "Index", y = "Standardized Residuals")
-
-# Look at a qqplot to assess normality
-ggqq <- ggplot(data.frame(lm.reg$residuals), aes(sample = lm.reg$residuals)) + 
-          stat_qq() + stat_qq_line(col = "blue", lty = 2) + 
-          labs(x = "Theoretical", y = "Sample")
-
-# Look at residuals vs leverage plot
-reslev <- ggplot(lm.reg, aes(x = .hat, y = .stdresid)) + 
-            geom_point(aes(size = .cooksd)) + 
-            stat_smooth(method = "lm") + 
-            labs( x = "Leverage", y = "Standardized Residuals") + 
-            scale_size_continuous("Cook's D", range = c(1,5)) +
-            theme_bw() + theme(legend.position = "right")
-
-# Stitch all the graphs together
-grid.arrange(regres, stdres, ggqq, reslev, nrow = 2)
-```
-
-~ talk about residual plots here ~
-
-The biggest benefit to using a multiple linear regression model is its interpretability and ease of use. The coefficients can be computed efficiently and they are have clear and easy interpretations. It is also possible to make inference on any of the variables or linear combination of variables. The most signficiant drawback of using the multiple linear regression model is that it is subject to distributional assumptions, meaning that if the assumptions are violated, our estimates and inference will be unstable at best and invalid at worst. 
-
-## Classification Tree  
-The basic classification tree is based on partitioning the data into subgroups using simple binary splitting. Initially, all objects are considered a single group. Then, the group is repeatedly binarily split into two subgroups based on the criteria of a certain variable. In the classification setting, we classify the observations in a specific region with majority vote. We want to grow the tree as big as we can, and then prune it back using cost-complexity pruning. This is done to not overfit the data, but pruning increases the bias. The pruning parameter needs to be tuned; below is a plot of the classification accuracy by pruning parameter, where .001 yields the highest accuracy.
-
-```{r tree, out.height='3in'}
-# Set seed for reprodicibility
-set.seed(702)
-
-# Fit classification tree model
-tree.class <- train(form.class, data = trn, method = "rpart",
-                    trControl = trctrl, tuneGrid = expand.grid(cp = seq(0, .02, .001)))
-
-# Plot the accuracy as a function of the tuning parameter
-plot(Accuracy ~ cp, data = tree.class$results, xlab = "Cp")
-points(which.max(tree.class$results$Accuracy),
-       tree.class$results$Accuracy[which.max(tree.class$results$Accuracy)],
-       pch = 8, col = "#CC0000")
-```
-
-The advantage of using a basic tree is that it is easy to understand and has a good interpretability, which is not something that translates over to ensemble methods. Additionally, the classification tree is not very computationally expensive, unlike the random forest model. We used the `caret` and `rpart` packages in R to fit our trees.
-
-A visualization of the classification tree can be found below.
-
-```{r, out.heigh = '3.5in'}
-# Obtain confusion matrix and results for H2
-tree.class.pred <- predict(tree.class, newdata = tst)
-tree.class.CM <- confusionMatrix(tree.class.pred, tst$class)
-tree.class.res <- c(tree.class.CM$overall[1], tree.class.CM$byClass[1:2])
-
-# Print out classification tree visualization
-tree.class.out <- rpart(form.class, data = trn, cp = 0.011)
-rpart.plot(tree.class.out, main="Classification Tree")
-```  
-
-## Random Forest  
-The random forest model is an ensemble tree-based method, which creates multiple trees from bootstrap samples and averages the results. Many bootstrap samples are created with replacement and then a classification tree is fitted on each bootstrap sample with a random subset of the predictors. Once a prediction has been made by all of the bootstrapped trees, the final classification is based on majority vote of the bootstrap predictions. Similarly, the prediction in the regression context is an average of all of the predictions of the bootstrapped trees.
-
-The following parameters need to be tuned in a random forest model:  
-  * `mtry`: the number of randomly-selected variables selected at a node split
-  * `ntree`: the number of trees to grow
-
-```{r rf, out.height='3.5in'}
-#### REGRESSION ####
-# Set seed for reproducibility
-set.seed(702)
-
-# Fit the regression random forest model 
-rf.reg <- train(form.reg, data = trn, method = "rf",
-                trControl = trctrl, importance = TRUE,
-                tuneGrid = expand.grid(mtry = 1:6))
-
-# Obtain RMSE and results
-rf.reg.pred <- predict(rf.reg, newdata = tst)
-rf.reg.rmse <- sqrt(mean((rf.reg.pred - tst$quality)^2))
-
-#### CLASSIFICATION ####
-# Fit the classification random forest model
-rf.class <- train(form.class, data = trn, method = "rf",
-                trControl = trctrl, importance = TRUE,
-                tuneGrid = expand.grid(mtry = 1:5))
-
-# Obtain confusion matrix and results
-rf.class.pred <- predict(rf.class, newdata = tst)
-rf.class.CM <- confusionMatrix(rf.class.pred, tst$class)
-rf.class.res <- c(rf.class.CM$overall[1], rf.class.CM$byClass[1:2])
-
-# Plot the RMSE and accuracy as a function of mtry (ntree constant at 500)
-par(mfrow = c(1,2))
-plot(RMSE ~ mtry, data = rf.reg$results)
-points(which.min(rf.reg$results$RMSE), rf.reg$results$RMSE[which.min(rf.reg$results$RMSE)],
-       pch = 8, col = "#CC0000")
-plot(Accuracy ~ mtry, data = rf.class$results)
-points(which.max(rf.class$results$Accuracy),
-       rf.class$results$Accuracy[which.max(rf.class$results$Accuracy)],
-       pch = 8, col = "#CC0000")
-```  
-
-Since `ntree` will plateau with enough trees, we tuned the `mtry` in both the regression and classification settings. For regression, the optimal `mtry` value is `r rf.reg$bestTune[1,1]`, while for classification it is  `r rf.class$bestTune[1,1]`. Keep in mind that the random forest is equivalent to bagging when the number of randomly selected features is equal to the total number of variables in the model. In both of the above plots, this is represented by the maximum displayed value of `mtry`.
-
-The advantage for using an ensemble method over a regular classification or regression tree is that because there are many bootstrap samples being averaged together, there is less variance. This is similar to how the variance of the sample mean goes down as the sample size increases. Although it will probably increase our prediction accuracy, the random forest loses the interpretability that the basic trees have. Furthermore, the algorithm that is used to fit the random forest is very computationally expensive.  
 
 # Results  
 
@@ -348,11 +376,10 @@ df.reg <- df.reg %>% select("B", "A")
 colnames(df.reg) <- c("Regression Method", "Root MSE")
 
 # Create data frame output for classification models
-df.class <- rbind.data.frame(tree.class.res, rf.class.res) %>% round(4)
-df.class$method <- cl
-colnames(df.class) <- c("A", "B", "C", "D")
-df.class <- df.class %>% select("D", "A", "B", "C")
-colnames(df.class) <- c("Classification Method", "Accuracy", "Sensitivity", "Specificity")
+df.class <- rbind.data.frame(prune.tree.class.test_err, rf.class.test_err) %>% round(4)
+colnames(df.class) <- c("Misclassification Rate")
+rownames(df.class) <- c("Classification Model", "Random Forest")
+df.class
 ```
 
 ```{r reg.out}
@@ -368,7 +395,7 @@ kable(df.class, caption = "Classification Model Results", format = "latex") %>%
   kable_styling(latex_options = "HOLD_position")
 ```
 
-Based on the output, the best model for both classification and regression was the random forest. This was not a surprise, since the ensemble methods tend to outperform regular methods. As an average of many classification trees, ensemble methods generally improve prediction accuracy and reduce overall variance. We suspect that other ensemble methods, such as bagging or boosting, may also be able to yield higher prediction accuracies. 
+Based on the output, the best model for both classification and regression was the random forest. This was not a surprise, since the ensemble methods tend to outperform regular methods. As an average of many classification trees, ensemble methods generally improve prediction accuracy and reduce overall variance. We suspect that other ensemble methods, such as bagging or boosting, may also be able to yield higher prediction accuracy.   
 
 One of the main disadvantages to using ensemble techniques like the random forest is the fact that they tend to be very computationally intensive. The basic classification tree and multiple linear regression model took significantly less time to run than the random forest, but they were less accurate in their predictions. If we wanted to run an ensemble method on a very large data set with a lot of features, it would be a computational nightmare.
 
