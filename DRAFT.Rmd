@@ -11,7 +11,7 @@ fontsize: 12pt
 
 ```{r setup, include=FALSE}
 # Set default chunk options
-knitr::opts_chunk$set(echo = FALSE, message = FALSE, 
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, cache = FALSE,
                       warning = FALSE, fig.align = "center",
                       out.height = '3.5in')
 
@@ -237,10 +237,25 @@ From cross validation, the model that produced the smallest error rate was the m
 
 # Regression Methods
 ## Multiple Linear Regression
-NEED CODE FROM YUN
+Multiple Linear Regression is the extension of simple linear regression to a set of multiple predictor variables. The goal of multiple linear regression is to model the linear relationship between a continuous response and two or more predictor variables. Like simple linear regression, coefficient estimates are found by minimizing the sum of the squared errors. The formula for a multiple linear regression model with $p$ predictor variables is as follows:  
+
+$$
+\begin{aligned}
+&Y_i = \beta_0 + \beta_1X_{i1} + \beta_2X_{i2} + ... + \beta_pX_{ip} + \epsilon_i, \\
+& \quad \text{where observation } i = 1, ..., n \\
+& \quad Y_i = \text{dependent variable (response)} \\
+& \quad X_{ij} = \text{independent variables for } j = 1, ... , p \\
+& \quad \beta_0 = \text{y-intercept} \\
+& \quad \beta_j = \text{slope coefficients for each variable} \\
+& \quad \epsilon_i = \text{residuals (error term of model)} \\
+\end{aligned}
+$$
+Although it is possible to use every predictor in the MLR model, we instead use variable selection to reduce the number of predictors to six (`volatile.acidity`, `chlorides`, `pH`, `total.sulfur.dioxide`, `sulphates`, and `alcohol`) while maintaining predictive accuracy (see Variable Selection section for details). Applying the MLR with the reduced model, we get the following:
+
 ```{r mlr}
 #### REGRESSION ####
-lm.reg <- lm(quality ~ . - class, data = trn)
+lm.reg <- lm(quality ~ volatile.acidity + chlorides + pH + total.sulfur.dioxide + sulphates + alcohol, data = trn)
+summary(lm.reg)
 
 # Obtain RMSE and results for linear model
 lm.reg.trn.pred <- predict(lm.reg, newdata = trn)
@@ -251,33 +266,21 @@ lm.reg.rmse <- sqrt(mean((lm.reg.pred - tst$quality)^2))
 lm.res <- c(lm.reg.trn.rmse, lm.reg.rmse)
 ```
 
-Multiple Linear Regression is the extension of simple linear regression to a set of multiple predictor variables. The goal of multiple linear regression is to model the linear relationship between a continuous response and two or more predictor variables. Like simple linear regression, coefficient estimates are found by minimizing the sum of the squared errors. The formula for a multiple linear regression model with $p$ predictor variables is as follows:  
-
-$$
-\begin{aligned}
-&Y_i = \beta_0 + \beta_1X_{i1} + \beta_2X_{i2} + ... + \beta_pX_{ip} + \epsilon_i, \\
-& \quad \text{where for } i = n \text{ observations}, \\
-& \quad y_i = \text{dependent variable (response)} \\
-& \quad x_{ji} = \text{indpendent variables } (j = 1, ... , p) \\
-& \quad \beta_0 = \text{y-intercept} \\
-& \quad \beta_j = \text{slope coefficients for each variable} \\
-& \quad \epsilon_i = \text{residuals (error term of model)} \\
-\end{aligned}
-$$
+The adjusted R-squared value 0.3633 suggests that these six predictors combined explain about 36.33% of the variance in `quality` of a wine.
 
 The multiple linear regression model is subject to the following assumptions about the data:  
 
   * Linear relationship between response and predictors
   * No collinearity between predictor variables
-  * $y_i$'s are iid
+  * $Y_i$'s are iid
   * $\epsilon_i \sim N(0, \sigma^2)$
 
 To assess these assumptions, we looked at various diagnostics plots:
 ```{r lm.diag}
 # Look at residual plot for nonlinearity
 regres <- ggplot(data = data.frame(lm.reg$residuals, lm.reg$fitted.values), 
-                 aes(x = lm.reg$residuals, y = lm.reg$fitted)) + 
-            geom_point(position = 'jitter') + labs(x = "Residuals", y = "Fitted Values") 
+                 aes(y = lm.reg$residuals, x = lm.reg$fitted)) + 
+            geom_point(position = 'jitter') + labs(y = "Residuals", x = "Fitted Values") 
 
 # Look at standardized residual plot for outliers
 stdres <- ggplot(data = data.frame(x = 1:length(lm.reg$residuals), 
@@ -300,9 +303,12 @@ reslev <- ggplot(lm.reg, aes(x = .hat, y = .stdresid)) +
 
 # Stitch all the graphs together
 grid.arrange(regres, stdres, ggqq, reslev, nrow = 2)
+
+scale.res <- scale(lm.reg$residuals)
+scale.res.2std <- mean((scale.res <= 1.96) * (scale.res >= -1.96))
 ```
 
-~ talk about residual plots here ~
+Residuals indicate that our MLR assumptions are mostly satisfied. The residuals vs. fitted values plot (top left) has unusual stratified lines, but this is caused by the actual responses being integer values of 4, 5, 6, 7, etc. rather than continuous values. The plot does not show heteroscedasticity, and residuals are spread evenly around 0 over the entire range of fitted values. When residuals are standardized, as in the top right plot, we expect about 95% to be inside the [-1.96, 1.96] interval; the actual proportion is `r round(scale.res.2std, 3)`. The Q-Q plot at bottom left compares the normality of residuals against a theoretical distribution. Except for a slight downward bias of the lowest 5% of residuals at 2 standard deviations below 0, the data fits a normal distribution almost perfectly. On the bottom right plot, high leverage points (those with leverage $\ge$ 0.03) are not dramatically biased, being spread both above and below the 0 residual. Cook's Distance top out at about 0.05, well below the generally accepted threshold of 1 needed to quality as highly influential. These plots taken together suggest that the data generally fulfills the requirements for modeling using MLR.
 
 The biggest benefit to using a multiple linear regression model is its interpretability and ease of use. The coefficients can be computed efficiently and they are have clear and easy interpretations. It is also possible to make inference on any of the variables or linear combination of variables. The most signficiant drawback of using the multiple linear regression model is that it is subject to distributional assumptions, meaning that if the assumptions are violated, our estimates and inference will be unstable at best and invalid at worst. 
 
@@ -428,7 +434,7 @@ We decided to choose the five variables with the most variable importance, leavi
 
 When looking at the problem in terms of a regression context, we used best subsets selection for feature selection. Using the `leaps` library and the `regsubsets()` function in R, we are able to compare all of the possible models from the given set of predictors. Through best subset selection, we can get the set of predictors for a model with any given amount of predictors. We looked at three different model criteria to compare models of different amounts of predictor variables: Mallow's Cp, BIC, and $R^2_{\text{adj}}$.
 
-```{r reg.select, out.height='3.5in', eval = F}
+```{r reg.select, out.height='3.5in', eval = T}
 # Create model and get summary output
 lm.sub <- regsubsets(quality ~ ., data = wine[,-13], nvmax = 11)
 smre <- lm.sub %>% summary()
