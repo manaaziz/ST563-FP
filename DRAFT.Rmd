@@ -39,7 +39,7 @@ set.seed(702)
 
 # Introduction
 
-There has been a push towards the implementation of different analytic solutions within the agriculture industry, especially in the realms of crop health and yield. These sort of analyses can help farmers reduce waste and improve profits. In particular, the viticulture industry stands to benefit from such methods, being that the production of wine is lengthy and multifaceted. Winemakers can work to optimize revenue by analyzing their input and output (crops and wines). Specifically, costs may be cut out if machine learning methods were able to predict the quality of wine based on different metrics, since wine producers would no longer have to hire expert wine tasters to determine wine quality. The main question the study looks to answer is can the quality of wine be predicted using a statistical model instead of taste testers. 
+There has been a push towards the implementation of different analytic solutions within the agriculture industry, especially in the realms of crop health and yield (Byrum et al. 2016). These sort of analyses can help farmers reduce waste and improve profits (Dimitriadis 2008). In particular, the viticulture industry stands to benefit from such methods, being that the production of wine is lengthy and multifaceted. Winemakers can work to optimize revenue by analyzing their input and output (crops and wines) (Santesteban 2019). Specifically, costs may be cut out if machine learning methods were able to predict the quality of wine based on different metrics, since wine producers would no longer have to hire expert wine tasters to determine wine quality. The main question the study looks to answer is can the quality of wine be predicted using a statistical model instead of taste testers. 
 
 The main objective is to model and predict the quality of wine using a variety of statistical learning techniques. This will be done by performing both regression and classification methods, with regression ranking the quality of the wines on a scale of zero to ten, with zero being the lowest quality and ten being the highest quality. The classification models will be classifying the wines into two categories, high and low, with wines in the low category having a score of zero to five, and wines in the high category having a quality score between six and ten. The assessment of the prediction accuracy will be performed by the following methods:
 
@@ -93,14 +93,49 @@ After reading the data, the first step was to create and view histograms of all 
 
 ```{r}
 # Create histograms for all 12 variables
-par(mfrow = c(3,4))
-for (i in 1:ncol(wine)){
-  hist(wine[,i], xlab = names(wine)[i], 
-       main = names(wine)[i])
-}
+hist1 <- ggplot(data = wine, aes(x = fixed.acidity)) + 
+           geom_histogram(color = 'black', fill = 'grey', binwidth = 1) +
+           labs(x = "Fixed Acidity", y = "Frequency")
+hist2 <- ggplot(data = wine, aes(x = volatile.acidity)) + 
+           geom_histogram(color = 'black', fill = 'grey', binwidth = .1) +
+           labs(x = "Volatile Acidity", y = NULL)
+hist3 <- ggplot(data = wine, aes(x = citric.acid)) + 
+           geom_histogram(color = 'black', fill = 'grey', binwidth = .075) +
+           labs(x = "Citric Acid", y = NULL)
+hist4 <- ggplot(data = wine, aes(x = residual.sugar)) + 
+           geom_histogram(color = 'black', fill = 'grey', binwidth = 1) +
+           labs(x = "Residual Sugar", y = NULL)
+hist5 <- ggplot(data = wine, aes(x = chlorides)) + 
+           geom_histogram(color = 'black', fill = 'grey', binwidth = .05) +
+           labs(x = "Chlorides", y = "Frequency")
+hist6 <- ggplot(data = wine, aes(x = free.sulfur.dioxide)) + 
+           geom_histogram(color = 'black', fill = 'grey', binwidth = 5) +
+           labs(x = "Free Sulfur Dioxide", y = NULL)
+hist7 <- ggplot(data = wine, aes(x = total.sulfur.dioxide)) + 
+           geom_histogram(color = 'black', fill = 'grey', binwidth = 20) +
+           labs(x = "Total Sulfur Dioxide", y = NULL)
+hist8 <- ggplot(data = wine, aes(x = density)) + 
+           geom_histogram(color = 'black', fill = 'grey', binwidth = .001) +
+           labs(x = "Density", y = NULL)
+hist9 <- ggplot(data = wine, aes(x = pH)) + 
+           geom_histogram(color = 'black', fill = 'grey', binwidth = .1) +
+           labs(x = "pH", y = "Frequency")
+hist10 <- ggplot(data = wine, aes(x = sulphates)) + 
+           geom_histogram(color = 'black', fill = 'grey', binwidth = .1) +
+           labs(x = "Sulphates", y = NULL)
+hist11 <- ggplot(data = wine, aes(x = alcohol)) + 
+           geom_histogram(color = 'black', fill = 'grey', binwidth = .5) +
+           labs(x = "Alcohol", y = NULL)
+hist12 <- ggplot(data = wine, aes(x = factor(quality))) + 
+           geom_bar(color = 'black', fill = 'grey') +
+           labs(x = "Quality", y = NULL)
+grid.arrange(hist1, hist2, hist3, hist4,
+             hist5, hist6, hist7, hist8,
+             hist9, hist10, hist11, hist12,
+             nrow = 3, ncol = 4)
 ```
 
-Most wines are classified as moderate wines, with less wines falling in the excellent and poor categories. The density and pH of the wine seem to be normally distributed, while the sulfur, acid, and sulphate content appear skewed to the right. The density varies very little; looking at the scale on the distribution, one can see that it is approximately normally distributed around 0.997 with a standard deviation of about 0.002. The distribution of alcohol content came as no surprise; an average bottle of wine will range from about 10-12% alcohol by volume, with some exceptions. Beyond 16%, the wine is then considered fortified wine, and red wines don't usually have alcohol content below about 8%.
+Most wines in the data set seem to be around the 5 to 7 range in terms of quality rating, meaning that there are not very many excellent or very poor wines. The density and pH of the wine seem to be normally distributed, while the sulfur, acid, and sulphate content appear skewed to the right. The density varies very little; looking at the scale on the distribution, one can see that it is approximately normally distributed around 0.997 with a standard deviation of about 0.002. The distribution of alcohol content came as no surprise; an average bottle of wine will range from about 10-12% alcohol by volume, with some exceptions. Beyond 16%, the wine is then considered fortified wine, and red wines don't usually have alcohol content below about 8%.
 
 Next, pairwise scatterplots of the variables were created and evaluated. This method allows one to obtain a greater understanding of how the variables relate to one another, as well as if there is any correlation structure. If the variables are related, there may be problems moving forward, so it is important to know these relationships before the analysis is performed.
 
@@ -144,9 +179,9 @@ for(i in 1:11){
 rownames(good.out) <- rownames(bad.out) <- names(good.wine)
 colnames(good.out) <- colnames(bad.out) <- c("Min.", "Q1", "Median", "Mean", "Q3", "Max.")
 
-kable(good.out, caption = "Summary Output for Good Wines") %>%
+kable(round(good.out, 2), caption = "Summary Output for Good Wines") %>%
   kable_styling(latex_options = "HOLD_position")
-kable(bad.out, caption = "Summary Output for Bad Wines") %>%
+kable(round(bad.out, 2), caption = "Summary Output for Bad Wines") %>%
   kable_styling(latex_options = "HOLD_position")
 ```
 
@@ -199,7 +234,7 @@ prune.tree.class.train_err <- mean(trn$class != predict(prune.tree.class, type =
 prune.tree.class.test_err <- mean(tst$class != prune.tree.class.pred)
 tree.res <- c(prune.tree.class.train_err, prune.tree.class.test_err)
 # prune.tree.class.test_err
-tree.res
+# tree.res
 ```
 
 The pruned tree produces a test error rate smaller than the original tree with a misclassification error of `r prune.tree.class.test_err`. The advantage of using a basic tree is that it is easy to understand and has a good interpretability, which is not something that translates over to ensemble methods. Additionally, the classification tree is not very computationally expensive, unlike ensemble classification methods. That being said, using ensemble methods like the random forest can often improve the error rate of a simple classification tree, since it is an average of many classification trees. While the test MSE was small in the classification tree, a random forest model was built next, in hopes that it may improve the accuracy of the predictions.
@@ -417,3 +452,10 @@ Since this study solely looks at the prediction accuracy of machine learning tec
 
 The characteristics of any given wine are often derived from different geological and/or climatological
 conditions. For example, a wine that comes from a region close enough to the water to get a sea breeze may have a hint of saltiness in its aroma or taste. Similarly, a grape coming from a relatively young grove might give the wine different features than if the grove were hundreds of years old. It would be interesting to see how different weather conditions, terroirs, plant ages, and slopes affect the outcome of the wine in terms of quality. 
+
+# References
+
+  * Byrum, Joseph, et al. "Advanced analytics for agricultural product development." Interfaces 46.1 (2016): 5-17.
+  * Dimitriadis, Savvas, and Christos Goumopoulos. "Applying machine learning to extract new knowledge in precision agriculture applications." 2008 Panhellenic Conference on Informatics. IEEE, 2008.
+  * Liakos, Konstantinos G., et al. "Machine learning in agriculture: A review." Sensors 18.8 (2018): 2674.
+  * Santesteban, Luis G. "Precision viticulture and advanced analytics. A short review." Food chemistry 279 (2019): 58-62.
